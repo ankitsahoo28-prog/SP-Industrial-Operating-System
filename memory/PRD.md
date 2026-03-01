@@ -46,6 +46,9 @@ Build a comprehensive business operations web application named "SP" for managin
 - [x] Logo integration on login page
 - [x] Historical trend data endpoint
 
+- [x] Business type filters on Director pages (Tasks, Reports, Indents, Accounting)
+- [x] Removed SP heading from sidebar
+
 ## In Progress
 (none)
 
