@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { accountingApi } from '@/lib/api';
+import { BusinessFilter } from '@/components/BusinessFilter';
 import { toast } from 'sonner';
 import { DollarSign, TrendingUp, TrendingDown, Download, FileText, Pencil } from 'lucide-react';
 
@@ -14,6 +15,7 @@ export default function AccountingPage() {
   const [summary, setSummary] = useState(null);
   const [ledger, setLedger] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [businessFilter, setBusinessFilter] = useState('all');
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [editFormData, setEditFormData] = useState({
@@ -27,13 +29,15 @@ export default function AccountingPage() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [businessFilter]);
 
   const fetchData = async () => {
     try {
+      const params = {};
+      if (businessFilter !== 'all') params.business_type = businessFilter;
       const [summaryRes, ledgerRes] = await Promise.all([
-        accountingApi.getSummary(),
-        accountingApi.getLedger(),
+        accountingApi.getSummary(params),
+        accountingApi.getLedger(params),
       ]);
       setSummary(summaryRes.data);
       setLedger(ledgerRes.data);
@@ -119,7 +123,8 @@ export default function AccountingPage() {
           <h1 className="text-3xl font-heading font-bold text-primary">Accounting Overview</h1>
           <p className="text-muted-foreground mt-1">Complete financial data across all businesses</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <BusinessFilter value={businessFilter} onChange={setBusinessFilter} />
           <Button variant="outline" size="sm" onClick={handleExportPdf} data-testid="export-pdf-button">
             <Download size={16} className="mr-2" />
             PDF
