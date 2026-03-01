@@ -1,5 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
+import { initializeSocket, disconnectSocket, requestNotificationPermission } from '@/lib/websocket';
+import { processSyncQueue } from '@/lib/offlineDb';
 
 const AuthContext = createContext();
 
@@ -18,6 +20,34 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [loading, setLoading] = useState(true);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  // Handle online/offline status
+  useEffect(() => {
+    const handleOnline = async () => {
+      setIsOnline(true);
+      console.log('\u2713 Back online - syncing data...');
+      try {
+        await processSyncQueue(axios);
+        console.log('\u2713 Sync complete');
+      } catch (error) {
+        console.error('Sync failed:', error);
+      }
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+      console.log('\u26a0 Offline mode activated');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // Axios interceptor for adding token
   useEffect(() => {
@@ -47,6 +77,12 @@ export const AuthProvider = ({ children }) => {
           headers: { Authorization: `Bearer ${token}` }
         });
         setUser(response.data);
+        
+        // Initialize WebSocket
+        initializeSocket(token, response.data.id);
+        
+        // Request notification permission
+        await requestNotificationPermission();
       } catch (error) {
         console.error('Failed to fetch user:', error);
         localStorage.removeItem('token');
@@ -59,6 +95,19 @@ export const AuthProvider = ({ children }) => {
     fetchUser();
   }, [token]);
 
+  // Register service worker
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/service-worker.js')
+        .then(registration => {
+          console.log('\u2713 Service Worker registered:', registration);
+        })
+        .catch(error => {
+          console.error('Service Worker registration failed:', error);
+        });
+    }
+  }, []);
+
   const login = async (email, password) => {
     try {
       const response = await axios.post(`${API}/auth/login`, { email, password });
@@ -66,6 +115,10 @@ export const AuthProvider = ({ children }) => {
       setToken(newToken);
       setUser(userData);
       localStorage.setItem('token', newToken);
+      
+      // Initialize WebSocket
+      initializeSocket(newToken, userData.id);
+      
       return { success: true };
     } catch (error) {
       return { success: false, error: error.response?.data?.detail || 'Login failed' };
@@ -79,6 +132,10 @@ export const AuthProvider = ({ children }) => {
       setToken(newToken);
       setUser(newUser);
       localStorage.setItem('token', newToken);
+      
+      // Initialize WebSocket
+      initializeSocket(newToken, newUser.id);
+      
       return { success: true };
     } catch (error) {
       return { success: false, error: error.response?.data?.detail || 'Registration failed' };
@@ -89,10 +146,11 @@ export const AuthProvider = ({ children }) => {
     setToken(null);
     setUser(null);
     localStorage.removeItem('token');
+    disconnectSocket();
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, logout, isOnline }}>
       {children}
     </AuthContext.Provider>
   );
