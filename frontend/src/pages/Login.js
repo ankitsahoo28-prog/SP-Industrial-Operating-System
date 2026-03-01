@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -12,8 +12,20 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { user, login } = useAuth();
   const navigate = useNavigate();
+
+  // Navigate when user state changes (after login)
+  useEffect(() => {
+    if (user && user.role) {
+      switch (user.role) {
+        case 'director': navigate('/director', { replace: true }); break;
+        case 'manager': navigate('/manager', { replace: true }); break;
+        case 'ground_staff': navigate('/ground-staff', { replace: true }); break;
+        default: break;
+      }
+    }
+  }, [user, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -23,12 +35,7 @@ export default function Login() {
 
     if (result.success) {
       toast.success('Welcome back!');
-      // Navigate directly based on role to avoid stale state in DashboardRouter
-      const role = result.user?.role;
-      if (role === 'director') navigate('/director');
-      else if (role === 'manager') navigate('/manager');
-      else if (role === 'ground_staff') navigate('/ground-staff');
-      else navigate('/');
+      // Navigation handled by useEffect above when user state updates
     } else {
       toast.error(result.error || 'Login failed');
     }
