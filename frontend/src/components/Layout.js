@@ -77,7 +77,6 @@ export const Layout = ({ children, role }) => {
       {/* Desktop Sidebar */}
       <aside className="hidden lg:flex fixed left-0 top-0 bottom-0 w-64 bg-card border-r flex-col z-40">
         <div className="p-6 border-b">
-          <h1 className="text-2xl font-heading font-bold text-primary">SP</h1>
           <p className="text-xs text-muted-foreground mt-1">Industrial OS</p>
         </div>
 
@@ -125,7 +124,7 @@ export const Layout = ({ children, role }) => {
       {/* Mobile Header */}
       <header className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-card border-b z-50 flex items-center justify-between px-4">
         <div>
-          <h1 className="text-xl font-heading font-bold text-primary">SP</h1>
+          <h1 className="text-xl font-heading font-bold text-primary">Industrial OS</h1>
         </div>
         <Button
           variant="ghost"
