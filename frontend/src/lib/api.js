@@ -45,8 +45,11 @@ export const indentApi = {
 export const accountingApi = {
   createTransaction: (transactionData) => api.post('/transactions', transactionData),
   getTransactions: () => api.get('/transactions'),
+  updateTransaction: (id, data) => api.put(`/transactions/${id}`, data),
   getLedger: () => api.get('/ledger'),
   getSummary: () => api.get('/accounting/summary'),
+  exportPdf: () => api.get('/export/transactions/pdf', { responseType: 'blob' }),
+  exportCsv: () => api.get('/export/ledger/csv', { responseType: 'blob' }),
 };
 
 export const inventoryApi = {
@@ -57,3 +60,9 @@ export const inventoryApi = {
 export const dashboardApi = {
   getStats: () => api.get('/dashboard/stats'),
 };
+
+export const auditApi = {
+  getLogs: (params) => api.get('/audit-logs', { params }),
+};
+
+export const deleteUser = (userId) => api.delete(`/users/${userId}`);
