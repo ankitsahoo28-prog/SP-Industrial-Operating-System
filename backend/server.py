@@ -925,6 +925,130 @@ async def get_ai_insights(current_user: dict = Depends(get_current_user)):
     
     return {"insights": insights}
 
+# Get AI Predictions for next month
+@api_router.get("/dashboard/predictions")
+async def get_predictions(current_user: dict = Depends(get_current_user)):
+    if current_user['role'] != UserRole.DIRECTOR:
+        raise HTTPException(status_code=403, detail="Only directors can view predictions")
+    
+    try:
+        # Get historical data from last 3 months
+        three_months_ago = datetime.now(timezone.utc) - timedelta(days=90)
+        
+        transactions = await db.transactions.find({
+            'date': {'$gte': three_months_ago.isoformat()}
+        }, {'_id': 0}).to_list(10000)
+        
+        inventory_items = await db.inventory.find({}, {'_id': 0}).to_list(1000)
+        reports = await db.reports.find({
+            'timestamp': {'$gte': three_months_ago.isoformat()}
+        }, {'_id': 0}).to_list(10000)
+        
+        # Calculate historical averages
+        total_income = sum(t['amount'] for t in transactions if t['transaction_type'] == 'income')
+        total_expense = sum(t['amount'] for t in transactions if t['transaction_type'] == 'expense')
+        months = 3
+        avg_monthly_income = total_income / months if months > 0 else 0
+        avg_monthly_expense = total_expense / months if months > 0 else 0
+        
+        # Generate AI predictions using OpenAI
+        from ai_service import client
+        
+        prompt = f\"\"\"
+Based on the following historical data from an industrial business, predict next month's financial and inventory needs.
+
+Historical Data (Last 3 months):
+- Total Income: \u20b9{total_income:.2f}
+- Total Expense: \u20b9{total_expense:.2f}
+- Average Monthly Income: \u20b9{avg_monthly_income:.2f}
+- Average Monthly Expense: \u20b9{avg_monthly_expense:.2f}
+- Number of Transactions: {len(transactions)}
+- Number of Reports Filed: {len(reports)}
+- Active Inventory Items: {len(inventory_items)}
+
+Provide predictions in this exact JSON format (no markdown, just JSON):
+{{
+  "revenue": predicted_revenue_number,
+  "expenses": predicted_expenses_number,
+  "revenue_trend": "brief explanation",
+  "expense_trend": "brief explanation",
+  "profit_trend": "brief explanation",
+  "revenue_confidence": confidence_percentage,
+  "expense_breakdown": [
+    {{"category": "Salary", "amount": amount}},
+    {{"category": "Raw Materials", "amount": amount}},
+    {{"category": "Utilities", "amount": amount}}
+  ],
+  "recommendations": ["recommendation1", "recommendation2", "recommendation3"],
+  "inventory_alerts": [
+    {{"item_name": "item", "predicted_quantity": number, "unit": "unit", "current_stock": number}}
+  ]
+}}
+
+Ensure all numbers are realistic and based on the trends.
+\"\"\"
+        
+        response = client.chat.completions.create(
+            model=\"gpt-4o-mini\",
+            messages=[
+                {\"role\": \"system\", \"content\": \"You are a financial forecasting AI. Always respond with valid JSON only.\"},
+                {\"role\": \"user\", \"content\": prompt}
+            ],
+            temperature=0.5,
+            max_tokens=1000
+        )
+        
+        import json
+        prediction_text = response.choices[0].message.content.strip()
+        
+        # Remove markdown code blocks if present
+        if prediction_text.startswith('```'):
+            prediction_text = prediction_text.split('```')[1]
+            if prediction_text.startswith('json'):
+                prediction_text = prediction_text[4:]
+        
+        predictions = json.loads(prediction_text)
+        
+        # Add inventory alerts from actual inventory
+        if len(inventory_items) > 0:
+            low_stock_items = []
+            for item in inventory_items:
+                if item['current_stock'] < item['opening_stock'] * 0.3:
+                    low_stock_items.append({
+                        \"item_name\": item['item_name'],
+                        \"predicted_quantity\": item['opening_stock'] * 0.5,
+                        \"unit\": item['unit'],
+                        \"current_stock\": item['current_stock']
+                    })
+            if low_stock_items:
+                predictions['inventory_alerts'] = low_stock_items[:5]
+        
+        logger.info(\"Generated AI predictions successfully\")
+        return predictions
+        
+    except Exception as e:
+        logger.error(f\"Failed to generate predictions: {str(e)}\")
+        # Return fallback predictions
+        return {
+            \"revenue\": avg_monthly_income * 1.05 if avg_monthly_income > 0 else 50000,
+            \"expenses\": avg_monthly_expense * 1.02 if avg_monthly_expense > 0 else 40000,
+            \"revenue_trend\": \"Based on 3-month average with 5% growth projection\",
+            \"expense_trend\": \"Expected 2% increase in operational costs\",
+            \"profit_trend\": \"Modest profit expected based on current trends\",
+            \"revenue_confidence\": 75,
+            \"expense_breakdown\": [
+                {\"category\": \"Salary\", \"amount\": avg_monthly_expense * 0.4},
+                {\"category\": \"Raw Materials\", \"amount\": avg_monthly_expense * 0.35},
+                {\"category\": \"Utilities\", \"amount\": avg_monthly_expense * 0.25}
+            ],
+            \"recommendations\": [
+                \"Monitor expenses closely for cost optimization\",
+                \"Focus on increasing revenue streams\",
+                \"Maintain adequate inventory levels\"
+            ],
+            \"inventory_alerts\": []
+        }
+
 # Get Translations
 @api_router.get("/translations/{lang}")
 async def get_translations(lang: str):
