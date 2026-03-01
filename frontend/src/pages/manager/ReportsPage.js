@@ -156,10 +156,10 @@ export default function ReportsPage() {
                   <SelectValue placeholder="Select type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value=\"crusher\">Crusher</SelectItem>
-                  <SelectItem value=\"slag_crusher\">Slag Crusher</SelectItem>
-                  <SelectItem value=\"stone_crusher\">Stone Crusher</SelectItem>
-                  <SelectItem value=\"other\">Other</SelectItem>
+                  <SelectItem value="crusher">Crusher</SelectItem>
+                  <SelectItem value="slag_crusher">Slag Crusher</SelectItem>
+                  <SelectItem value="stone_crusher">Stone Crusher</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
                 </SelectContent>
               </Select>
             </div>
