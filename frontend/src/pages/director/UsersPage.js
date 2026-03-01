@@ -5,14 +5,16 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { userApi } from '@/lib/api';
+import { userApi, deleteUser } from '@/lib/api';
 import { toast } from 'sonner';
-import { UserPlus, Mail, Phone, Briefcase, Shield } from 'lucide-react';
+import { UserPlus, Mail, Phone, Briefcase, Shield, Trash2 } from 'lucide-react';
 
 export default function UsersPage() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState(null);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
