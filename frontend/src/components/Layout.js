@@ -37,6 +37,7 @@ export const Layout = ({ children, role }) => {
         { icon: FileText, label: 'Reports', path: '/reports' },
         { icon: Package, label: 'Indents', path: '/indents' },
         { icon: DollarSign, label: 'Accounting', path: '/accounting' },
+        { icon: History, label: 'Audit Trail', path: '/audit-log' },
       ];
     } else if (role === 'manager') {
       return [
