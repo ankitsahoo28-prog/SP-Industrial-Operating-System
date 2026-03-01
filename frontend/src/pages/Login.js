@@ -125,13 +125,6 @@ export default function Login() {
                 )}
               </Button>
             </form>
-
-            <div className="mt-6 p-4 bg-muted rounded-lg">
-              <p className="text-xs text-muted-foreground mb-2 font-semibold">Demo Credentials:</p>
-              <p className="text-xs text-muted-foreground">Director: director@sp.com / password123</p>
-              <p className="text-xs text-muted-foreground">Manager: manager@sp.com / password123</p>
-              <p className="text-xs text-muted-foreground">Ground Staff: staff@sp.com / password123</p>
-            </div>
           </CardContent>
         </Card>
       </div>
