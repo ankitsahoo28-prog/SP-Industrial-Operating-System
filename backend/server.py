@@ -589,7 +589,7 @@ async def authorize_indent(
         raise HTTPException(status_code=403, detail="Only directors can authorize indents")
     
     update_dict = auth_data.model_dump()
-    update_dict['authorized_by'] = current_user['user_id']]
+    update_dict['authorized_by'] = current_user['user_id']
     
     await db.indents.update_one({'id': indent_id}, {'$set': update_dict})
     
