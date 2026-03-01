@@ -2,7 +2,7 @@ import requests
 import sys
 
 # API URL
-BACKEND_URL = "https://sp-fleet.preview.emergentagent.com/api"
+BACKEND_URL = "https://sp-multi-biz.preview.emergentagent.com/api"
 
 def create_demo_users():
     """Create demo users for testing"""
