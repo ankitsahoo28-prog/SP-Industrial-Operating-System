@@ -279,7 +279,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 
 # Audit logging helper
 async def log_audit(action: str, entity_type: str, entity_id: str, user_id: str, old_data: Optional[Dict] = None, new_data: Optional[Dict] = None):
-    \"\"\"Log changes for audit trail\"\"\"
+    """Log changes for audit trail"""
     audit_log = AuditLog(
         action=action,
         entity_type=entity_type,
