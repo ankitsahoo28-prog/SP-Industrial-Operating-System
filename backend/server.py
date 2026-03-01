@@ -48,8 +48,11 @@ class TaskStatus(str, Enum):
 class ReportType(str, Enum):
     FEEDING = "feeding"
     DIESEL = "diesel"
+    PETROL = "petrol"
+    LUBRICANT = "lubricant"
     DISPATCH = "dispatch"
     INCOMING_STOCK = "incoming_stock"
+    RUNNING_HOURS = "running_hours"
 
 class IndentStatus(str, Enum):
     PENDING = "pending"
@@ -64,6 +67,21 @@ class BusinessType(str, Enum):
     SLAG_CRUSHING = "slag_crushing"
     STONE_CRUSHER = "stone_crusher"
 
+class TransactionType(str, Enum):
+    EXPENSE = "expense"
+    INCOME = "income"
+
+class PaymentMode(str, Enum):
+    CASH = "cash"
+    BANK = "bank"
+
+class AccountType(str, Enum):
+    ASSET = "asset"
+    LIABILITY = "liability"
+    EQUITY = "equity"
+    INCOME = "income"
+    EXPENSE = "expense"
+
 # Models
 class User(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -74,7 +92,7 @@ class User(BaseModel):
     phone: Optional[str] = None
     business_type: Optional[BusinessType] = None
     manager_id: Optional[str] = None
-    shift_start: Optional[str] = None  # HH:MM format
+    shift_start: Optional[str] = None
     shift_end: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -102,6 +120,7 @@ class Task(BaseModel):
     assigned_to: str
     status: TaskStatus = TaskStatus.PENDING
     deadline: Optional[datetime] = None
+    business_type: Optional[BusinessType] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -152,6 +171,7 @@ class Indent(BaseModel):
     status: IndentStatus = IndentStatus.PENDING
     authorized_by: Optional[str] = None
     notes: Optional[str] = None
+    business_type: Optional[BusinessType] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class IndentCreate(BaseModel):
@@ -161,6 +181,48 @@ class IndentCreate(BaseModel):
 class IndentAuthorize(BaseModel):
     status: IndentStatus
     notes: Optional[str] = None
+
+# Accounting Models
+class Transaction(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    transaction_type: TransactionType
+    payment_mode: PaymentMode
+    amount: float
+    description: str
+    category: str
+    created_by: str
+    business_type: Optional[BusinessType] = None
+    date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class TransactionCreate(BaseModel):
+    transaction_type: TransactionType
+    payment_mode: PaymentMode
+    amount: float
+    description: str
+    category: str
+    date: Optional[datetime] = None
+
+# Inventory Models
+class InventoryItem(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    item_name: str
+    category: str
+    opening_stock: float
+    current_stock: float
+    unit: str
+    business_type: Optional[BusinessType] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class InventoryItemCreate(BaseModel):
+    item_name: str
+    category: str
+    opening_stock: float
+    unit: str
+    business_type: Optional[BusinessType] = None
 
 # Helper Functions
 def hash_password(password: str) -> str:
@@ -186,7 +248,13 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         role = payload.get('role')
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid token")
-        return {'user_id': user_id, 'role': role}
+        
+        # Get full user details
+        user_doc = await db.users.find_one({'id': user_id}, {'_id': 0, 'password_hash': 0})
+        if not user_doc:
+            raise HTTPException(status_code=401, detail="User not found")
+        
+        return {'user_id': user_id, 'role': role, 'business_type': user_doc.get('business_type')}
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
     except jwt.InvalidTokenError:
@@ -195,15 +263,11 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 # Auth Routes
 @api_router.post("/auth/register")
 async def register(user_data: UserCreate):
-    # Check if email exists
     existing = await db.users.find_one({'email': user_data.email}, {'_id': 0})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
     
-    # Hash password
     password_hash = hash_password(user_data.password)
-    
-    # Create user
     user_dict = user_data.model_dump(exclude={'password'})
     user = User(**user_dict)
     
@@ -212,8 +276,6 @@ async def register(user_data: UserCreate):
     doc['created_at'] = doc['created_at'].isoformat()
     
     await db.users.insert_one(doc)
-    
-    # Generate token
     token = create_jwt_token(user.id, user.role.value)
     
     return {'user': user, 'token': token}
@@ -227,7 +289,6 @@ async def login(credentials: UserLogin):
     if not verify_password(credentials.password, user_doc['password_hash']):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
-    # Convert ISO string back to datetime
     if isinstance(user_doc['created_at'], str):
         user_doc['created_at'] = datetime.fromisoformat(user_doc['created_at'])
     
@@ -252,7 +313,6 @@ async def get_me(current_user: dict = Depends(get_current_user)):
 async def get_users(current_user: dict = Depends(get_current_user)):
     query = {}
     
-    # Directors see all, Managers see their team, Ground staff see none
     if current_user['role'] == UserRole.MANAGER:
         query = {'manager_id': current_user['user_id']}
     elif current_user['role'] == UserRole.GROUND_STAFF:
@@ -268,15 +328,16 @@ async def get_users(current_user: dict = Depends(get_current_user)):
 
 @api_router.post("/users", response_model=User)
 async def create_user(user_data: UserCreate, current_user: dict = Depends(get_current_user)):
-    # Only Directors can create Managers, Managers can create Ground Staff
     if current_user['role'] == UserRole.DIRECTOR and user_data.role == UserRole.MANAGER:
         pass
     elif current_user['role'] == UserRole.MANAGER and user_data.role == UserRole.GROUND_STAFF:
         user_data.manager_id = current_user['user_id']
+        # Inherit business type from manager
+        if not user_data.business_type:
+            user_data.business_type = current_user['business_type']
     else:
         raise HTTPException(status_code=403, detail="Access denied")
     
-    # Check if email exists
     existing = await db.users.find_one({'email': user_data.email}, {'_id': 0})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -300,10 +361,19 @@ async def get_tasks(current_user: dict = Depends(get_current_user)):
     if current_user['role'] == UserRole.GROUND_STAFF:
         query = {'assigned_to': current_user['user_id']}
     elif current_user['role'] == UserRole.MANAGER:
-        # Get tasks assigned to manager or their team
+        # Manager sees tasks assigned to them AND their team
         team_ids = [doc['id'] for doc in await db.users.find({'manager_id': current_user['user_id']}, {'_id': 0, 'id': 1}).to_list(1000)]
-        team_ids.append(current_user['user_id'])
+        team_ids.append(current_user['user_id'])  # Include manager's own tasks
         query = {'assigned_to': {'$in': team_ids}}
+        # Filter by business type
+        if current_user.get('business_type'):
+            query['$or'] = [
+                {'business_type': current_user['business_type']},
+                {'business_type': None}
+            ]
+    elif current_user['role'] == UserRole.DIRECTOR:
+        # Directors see all tasks
+        pass
     
     tasks = await db.tasks.find(query, {'_id': 0}).to_list(1000)
     
@@ -321,6 +391,7 @@ async def create_task(task_data: TaskCreate, current_user: dict = Depends(get_cu
     
     task_dict = task_data.model_dump()
     task_dict['assigned_by'] = current_user['user_id']
+    task_dict['business_type'] = current_user.get('business_type')
     task = Task(**task_dict)
     
     doc = task.model_dump()
@@ -381,12 +452,27 @@ async def get_user_locations(user_id: str, current_user: dict = Depends(get_curr
 async def create_report(report_data: ReportCreate, current_user: dict = Depends(get_current_user)):
     report_dict = report_data.model_dump()
     report_dict['user_id'] = current_user['user_id']
+    if not report_dict.get('business_type'):
+        report_dict['business_type'] = current_user.get('business_type')
     report = Report(**report_dict)
     
     doc = report.model_dump()
     doc['timestamp'] = doc['timestamp'].isoformat()
     
     await db.reports.insert_one(doc)
+    
+    # Update inventory if it's incoming or dispatch report
+    if report.type == ReportType.INCOMING_STOCK:
+        item_name = report.data.get('item_name')
+        quantity = float(report.data.get('quantity', 0))
+        if item_name and quantity:
+            await update_inventory_stock(item_name, quantity, current_user.get('business_type'))
+    elif report.type == ReportType.DISPATCH:
+        item_name = report.data.get('item_name')
+        quantity = float(report.data.get('quantity', 0))
+        if item_name and quantity:
+            await update_inventory_stock(item_name, -quantity, current_user.get('business_type'))
+    
     return report
 
 @api_router.get("/reports", response_model=List[Report])
@@ -397,6 +483,10 @@ async def get_reports(
     query = {}
     if report_type:
         query['type'] = report_type
+    
+    # Filter by business type for non-directors
+    if current_user['role'] != UserRole.DIRECTOR and current_user.get('business_type'):
+        query['business_type'] = current_user['business_type']
     
     if current_user['role'] == UserRole.GROUND_STAFF:
         query['user_id'] = current_user['user_id']
@@ -417,6 +507,7 @@ async def create_indent(indent_data: IndentCreate, current_user: dict = Depends(
     
     indent_dict = indent_data.model_dump()
     indent_dict['requested_by'] = current_user['user_id']
+    indent_dict['business_type'] = current_user.get('business_type')
     indent = Indent(**indent_dict)
     
     doc = indent.model_dump()
@@ -460,25 +551,229 @@ async def authorize_indent(
     
     return Indent(**updated_doc)
 
+# Accounting Routes
+@api_router.post("/transactions", response_model=Transaction)
+async def create_transaction(transaction_data: TransactionCreate, current_user: dict = Depends(get_current_user)):
+    if current_user['role'] == UserRole.GROUND_STAFF:
+        raise HTTPException(status_code=403, detail="Only managers and directors can create transactions")
+    
+    transaction_dict = transaction_data.model_dump()
+    transaction_dict['created_by'] = current_user['user_id']
+    transaction_dict['business_type'] = current_user.get('business_type')
+    
+    if not transaction_dict.get('date'):
+        transaction_dict['date'] = datetime.now(timezone.utc)
+    
+    transaction = Transaction(**transaction_dict)
+    
+    doc = transaction.model_dump()
+    doc['date'] = doc['date'].isoformat()
+    doc['created_at'] = doc['created_at'].isoformat()
+    
+    await db.transactions.insert_one(doc)
+    return transaction
+
+@api_router.get("/transactions", response_model=List[Transaction])
+async def get_transactions(current_user: dict = Depends(get_current_user)):
+    query = {}
+    
+    # Filter by business type for non-directors
+    if current_user['role'] != UserRole.DIRECTOR and current_user.get('business_type'):
+        query['business_type'] = current_user['business_type']
+    
+    transactions = await db.transactions.find(query, {'_id': 0}).sort('date', -1).to_list(1000)
+    
+    for transaction in transactions:
+        if isinstance(transaction.get('date'), str):
+            transaction['date'] = datetime.fromisoformat(transaction['date'])
+        if isinstance(transaction.get('created_at'), str):
+            transaction['created_at'] = datetime.fromisoformat(transaction['created_at'])
+    
+    return transactions
+
+@api_router.get("/ledger")
+async def get_ledger(current_user: dict = Depends(get_current_user)):
+    query = {}
+    if current_user['role'] != UserRole.DIRECTOR and current_user.get('business_type'):
+        query['business_type'] = current_user['business_type']
+    
+    transactions = await db.transactions.find(query, {'_id': 0}).sort('date', 1).to_list(10000)
+    
+    # Calculate running balance
+    balance = 0
+    ledger_entries = []
+    
+    for trans in transactions:
+        if isinstance(trans.get('date'), str):
+            trans['date'] = datetime.fromisoformat(trans['date'])
+        
+        if trans['transaction_type'] == 'income':
+            balance += trans['amount']
+        else:
+            balance -= trans['amount']
+        
+        ledger_entries.append({
+            **trans,
+            'balance': balance
+        })
+    
+    return ledger_entries
+
+@api_router.get("/accounting/summary")
+async def get_accounting_summary(current_user: dict = Depends(get_current_user)):
+    query = {}
+    if current_user['role'] != UserRole.DIRECTOR and current_user.get('business_type'):
+        query['business_type'] = current_user['business_type']
+    
+    transactions = await db.transactions.find(query, {'_id': 0}).to_list(10000)
+    
+    total_income = sum(t['amount'] for t in transactions if t['transaction_type'] == 'income')
+    total_expense = sum(t['amount'] for t in transactions if t['transaction_type'] == 'expense')
+    
+    cash_income = sum(t['amount'] for t in transactions if t['transaction_type'] == 'income' and t['payment_mode'] == 'cash')
+    bank_income = sum(t['amount'] for t in transactions if t['transaction_type'] == 'income' and t['payment_mode'] == 'bank')
+    cash_expense = sum(t['amount'] for t in transactions if t['transaction_type'] == 'expense' and t['payment_mode'] == 'cash')
+    bank_expense = sum(t['amount'] for t in transactions if t['transaction_type'] == 'expense' and t['payment_mode'] == 'bank')
+    
+    return {
+        'total_income': total_income,
+        'total_expense': total_expense,
+        'net_profit': total_income - total_expense,
+        'cash_balance': cash_income - cash_expense,
+        'bank_balance': bank_income - bank_expense,
+        'cash_income': cash_income,
+        'bank_income': bank_income,
+        'cash_expense': cash_expense,
+        'bank_expense': bank_expense
+    }
+
+# Inventory Routes
+async def update_inventory_stock(item_name: str, quantity: float, business_type: Optional[str]):
+    """Helper function to update inventory stock"""
+    item = await db.inventory.find_one({'item_name': item_name, 'business_type': business_type}, {'_id': 0})
+    
+    if item:
+        new_stock = item['current_stock'] + quantity
+        await db.inventory.update_one(
+            {'id': item['id']},
+            {'$set': {'current_stock': new_stock, 'updated_at': datetime.now(timezone.utc).isoformat()}}
+        )
+    else:
+        # Create new inventory item if it doesn't exist
+        new_item = InventoryItem(
+            item_name=item_name,
+            category='General',
+            opening_stock=max(0, quantity),
+            current_stock=max(0, quantity),
+            unit='units',
+            business_type=business_type
+        )
+        doc = new_item.model_dump()
+        doc['created_at'] = doc['created_at'].isoformat()
+        doc['updated_at'] = doc['updated_at'].isoformat()
+        await db.inventory.insert_one(doc)
+
+@api_router.post("/inventory", response_model=InventoryItem)
+async def create_inventory_item(item_data: InventoryItemCreate, current_user: dict = Depends(get_current_user)):
+    if current_user['role'] == UserRole.GROUND_STAFF:
+        raise HTTPException(status_code=403, detail="Only managers and directors can manage inventory")
+    
+    item_dict = item_data.model_dump()
+    if not item_dict.get('business_type'):
+        item_dict['business_type'] = current_user.get('business_type')
+    
+    item_dict['current_stock'] = item_dict['opening_stock']
+    item = InventoryItem(**item_dict)
+    
+    doc = item.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    doc['updated_at'] = doc['updated_at'].isoformat()
+    
+    await db.inventory.insert_one(doc)
+    return item
+
+@api_router.get("/inventory", response_model=List[InventoryItem])
+async def get_inventory(current_user: dict = Depends(get_current_user)):
+    query = {}
+    
+    # Filter by business type for non-directors
+    if current_user['role'] != UserRole.DIRECTOR and current_user.get('business_type'):
+        query['business_type'] = current_user['business_type']
+    
+    items = await db.inventory.find(query, {'_id': 0}).sort('item_name', 1).to_list(1000)
+    
+    for item in items:
+        if isinstance(item.get('created_at'), str):
+            item['created_at'] = datetime.fromisoformat(item['created_at'])
+        if isinstance(item.get('updated_at'), str):
+            item['updated_at'] = datetime.fromisoformat(item['updated_at'])
+    
+    return items
+
 # Dashboard Routes
 @api_router.get("/dashboard/stats")
 async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
-    if current_user['role'] != UserRole.DIRECTOR:
-        raise HTTPException(status_code=403, detail="Access denied")
-    
-    total_users = await db.users.count_documents({})
-    total_tasks = await db.tasks.count_documents({})
-    pending_tasks = await db.tasks.count_documents({'status': TaskStatus.PENDING})
-    total_reports = await db.reports.count_documents({})
-    pending_indents = await db.indents.count_documents({'status': IndentStatus.PENDING})
-    
-    return {
-        'total_users': total_users,
-        'total_tasks': total_tasks,
-        'pending_tasks': pending_tasks,
-        'total_reports': total_reports,
-        'pending_indents': pending_indents
-    }
+    if current_user['role'] == UserRole.DIRECTOR:
+        # Directors see all data grouped by business
+        businesses = list(BusinessType)
+        business_stats = []
+        
+        for business in businesses:
+            total_users = await db.users.count_documents({'business_type': business.value})
+            total_tasks = await db.tasks.count_documents({'business_type': business.value})
+            pending_tasks = await db.tasks.count_documents({'business_type': business.value, 'status': TaskStatus.PENDING})
+            total_reports = await db.reports.count_documents({'business_type': business.value})
+            pending_indents = await db.indents.count_documents({'business_type': business.value, 'status': IndentStatus.PENDING})
+            
+            transactions = await db.transactions.find({'business_type': business.value}, {'_id': 0}).to_list(10000)
+            total_income = sum(t['amount'] for t in transactions if t['transaction_type'] == 'income')
+            total_expense = sum(t['amount'] for t in transactions if t['transaction_type'] == 'expense')
+            
+            business_stats.append({
+                'business_type': business.value,
+                'business_name': business.value.replace('_', ' ').title(),
+                'total_users': total_users,
+                'total_tasks': total_tasks,
+                'pending_tasks': pending_tasks,
+                'total_reports': total_reports,
+                'pending_indents': pending_indents,
+                'total_income': total_income,
+                'total_expense': total_expense,
+                'net_profit': total_income - total_expense
+            })
+        
+        # Overall stats
+        total_users = await db.users.count_documents({})
+        total_tasks = await db.tasks.count_documents({})
+        pending_tasks = await db.tasks.count_documents({'status': TaskStatus.PENDING})
+        total_reports = await db.reports.count_documents({})
+        pending_indents = await db.indents.count_documents({'status': IndentStatus.PENDING})
+        
+        return {
+            'total_users': total_users,
+            'total_tasks': total_tasks,
+            'pending_tasks': pending_tasks,
+            'total_reports': total_reports,
+            'pending_indents': pending_indents,
+            'business_stats': business_stats
+        }
+    else:
+        # Managers and ground staff see only their business data
+        query = {'business_type': current_user.get('business_type')}
+        
+        total_users = await db.users.count_documents(query)
+        total_tasks = await db.tasks.count_documents(query)
+        pending_tasks = await db.tasks.count_documents({**query, 'status': TaskStatus.PENDING})
+        total_reports = await db.reports.count_documents(query)
+        pending_indents = await db.indents.count_documents({**query, 'status': IndentStatus.PENDING})
+        
+        return {
+            'total_users': total_users,
+            'total_tasks': total_tasks,
+            'pending_tasks': pending_tasks,
+            'total_reports': total_reports,
+            'pending_indents': pending_indents
+        }
 
 @api_router.get("/")
 async def root():
