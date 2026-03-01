@@ -179,6 +179,8 @@ export default function ManagerDashboard() {
         <Route path="tracking" element={<TrackingPage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="indents" element={<IndentsPage />} />
+        <Route path="accounting" element={<AccountingPage />} />
+        <Route path="inventory" element={<InventoryPage />} />
       </Routes>
     </Layout>
   );
