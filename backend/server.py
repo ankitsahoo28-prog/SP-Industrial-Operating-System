@@ -589,13 +589,26 @@ async def authorize_indent(
         raise HTTPException(status_code=403, detail="Only directors can authorize indents")
     
     update_dict = auth_data.model_dump()
-    update_dict['authorized_by'] = current_user['user_id']
+    update_dict['authorized_by'] = current_user['user_id']]
     
     await db.indents.update_one({'id': indent_id}, {'$set': update_dict})
     
     updated_doc = await db.indents.find_one({'id': indent_id}, {'_id': 0})
     if isinstance(updated_doc.get('created_at'), str):
         updated_doc['created_at'] = datetime.fromisoformat(updated_doc['created_at'])
+    
+    # Send email notification to requester
+    try:
+        requester = await db.users.find_one({'id': updated_doc['requested_by']}, {'_id': 0})
+        if requester and requester.get('email'):
+            await send_indent_approval_email(
+                requester['email'],
+                indent_id,
+                auth_data.status.value,
+                len(updated_doc.get('items', []))
+            )
+    except Exception as e:
+        logger.error(f"Failed to send indent notification email: {str(e)}")
     
     return Indent(**updated_doc)
 
