@@ -69,6 +69,19 @@ export default function UsersPage() {
     return styles[role] || 'bg-gray-100 text-gray-700';
   };
 
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return;
+    try {
+      await deleteUser(userToDelete.id);
+      toast.success(`User ${userToDelete.name} deleted`);
+      setDeleteDialogOpen(false);
+      setUserToDelete(null);
+      fetchUsers();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to delete user');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
