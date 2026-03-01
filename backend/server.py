@@ -811,6 +811,97 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
 async def root():
     return {"message": "SP Industrial Operating System API"}
 
+# Delete User (Director only)
+@api_router.delete("/users/{user_id}")
+async def delete_user(user_id: str, current_user: dict = Depends(get_current_user)):
+    if current_user['role'] != UserRole.DIRECTOR:
+        raise HTTPException(status_code=403, detail="Only directors can delete users")
+    
+    user_doc = await db.users.find_one({'id': user_id}, {'_id': 0})
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Log audit
+    await log_audit('delete', 'user', user_id, current_user['user_id'], old_data=user_doc)
+    
+    await db.users.delete_one({'id': user_id})
+    return {"message": "User deleted successfully"}
+
+# Update Transaction (Edit wrong entry)
+@api_router.put("/transactions/{transaction_id}", response_model=Transaction)
+async def update_transaction(
+    transaction_id: str,
+    transaction_data: TransactionCreate,
+    current_user: dict = Depends(get_current_user)
+):
+    if current_user['role'] == UserRole.GROUND_STAFF:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    old_doc = await db.transactions.find_one({'id': transaction_id}, {'_id': 0})
+    if not old_doc:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    
+    # Update transaction
+    update_dict = transaction_data.model_dump()
+    if not update_dict.get('date'):
+        update_dict['date'] = datetime.now(timezone.utc)
+    update_dict['date'] = update_dict['date'].isoformat() if isinstance(update_dict['date'], datetime) else update_dict['date']
+    
+    await db.transactions.update_one({'id': transaction_id}, {'$set': update_dict})
+    
+    # Log audit
+    updated_doc = await db.transactions.find_one({'id': transaction_id}, {'_id': 0})
+    await log_audit('update', 'transaction', transaction_id, current_user['user_id'], old_data=old_doc, new_data=updated_doc)
+    
+    if isinstance(updated_doc.get('date'), str):
+        updated_doc['date'] = datetime.fromisoformat(updated_doc['date'])
+    if isinstance(updated_doc.get('created_at'), str):
+        updated_doc['created_at'] = datetime.fromisoformat(updated_doc['created_at'])
+    
+    return Transaction(**updated_doc)
+
+# Get Audit Logs (Director only)
+@api_router.get("/audit-logs")
+async def get_audit_logs(
+    entity_type: Optional[str] = None,
+    entity_id: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    if current_user['role'] != UserRole.DIRECTOR:
+        raise HTTPException(status_code=403, detail="Only directors can view audit logs")
+    
+    query = {}
+    if entity_type:
+        query['entity_type'] = entity_type
+    if entity_id:
+        query['entity_id'] = entity_id
+    
+    logs = await db.audit_logs.find(query, {'_id': 0}).sort('timestamp', -1).limit(100).to_list(100)
+    
+    for log in logs:
+        if isinstance(log.get('timestamp'), str):
+            log['timestamp'] = datetime.fromisoformat(log['timestamp'])
+    
+    return logs
+
+# Get AI Insights
+@api_router.get("/dashboard/ai-insights")
+async def get_ai_insights(current_user: dict = Depends(get_current_user)):
+    if current_user['role'] != UserRole.DIRECTOR:
+        raise HTTPException(status_code=403, detail="Only directors can view AI insights")
+    
+    # Get stats for AI analysis
+    stats = await get_dashboard_stats(current_user)
+    insights = await generate_business_insights(stats)
+    
+    return {"insights": insights}
+
+# Get Translations
+@api_router.get("/translations/{lang}")
+async def get_translations(lang: str):
+    from i18n import translations
+    return translations.get(lang, translations["en"])
+
 # Include router
 app.include_router(api_router)
 
