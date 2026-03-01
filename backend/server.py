@@ -433,6 +433,22 @@ async def create_task(task_data: TaskCreate, current_user: dict = Depends(get_cu
         doc['deadline'] = doc['deadline'].isoformat()
     
     await db.tasks.insert_one(doc)
+    
+    # Send email notification to assigned user
+    try:
+        assigned_user = await db.users.find_one({'id': task.assigned_to}, {'_id': 0})
+        assigner = await db.users.find_one({'id': current_user['user_id']}, {'_id': 0})
+        if assigned_user and assigned_user.get('email'):
+            deadline_str = task.deadline.strftime('%Y-%m-%d %H:%M') if task.deadline else None
+            await send_task_assignment_email(
+                assigned_user['email'],
+                task.title,
+                assigner.get('name', 'Manager'),
+                deadline_str
+            )
+    except Exception as e:
+        logger.error(f"Failed to send task notification email: {str(e)}")
+    
     return task
 
 @api_router.patch("/tasks/{task_id}", response_model=Task)
