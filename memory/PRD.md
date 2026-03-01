@@ -49,6 +49,8 @@ Build a comprehensive business operations web application named "SP" for managin
 - [x] Business type filters on Director pages (Tasks, Reports, Indents, Accounting)
 - [x] Removed SP heading from sidebar
 
+- [x] Login page: background video + SP GROUP logo (replaced SP Industrial OS text)
+
 ## In Progress
 (none)
 
