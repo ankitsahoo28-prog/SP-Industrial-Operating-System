@@ -23,7 +23,12 @@ export default function Login() {
 
     if (result.success) {
       toast.success('Welcome back!');
-      navigate('/');
+      // Navigate directly based on role to avoid stale state in DashboardRouter
+      const role = result.user?.role;
+      if (role === 'director') navigate('/director');
+      else if (role === 'manager') navigate('/manager');
+      else if (role === 'ground_staff') navigate('/ground-staff');
+      else navigate('/');
     } else {
       toast.error(result.error || 'Login failed');
     }
