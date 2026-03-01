@@ -21,7 +21,7 @@ export const userApi = {
 };
 
 export const taskApi = {
-  getTasks: () => api.get('/tasks'),
+  getTasks: (params) => api.get('/tasks', { params }),
   createTask: (taskData) => api.post('/tasks', taskData),
   updateTask: (taskId, updateData) => api.patch(`/tasks/${taskId}`, updateData),
 };
