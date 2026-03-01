@@ -303,6 +303,9 @@ export default function ReportsPage() {
                   <SelectContent>
                     <SelectItem value="feeding">Feeding Report</SelectItem>
                     <SelectItem value="diesel">Diesel Report</SelectItem>
+                    <SelectItem value="petrol">Petrol Report</SelectItem>
+                    <SelectItem value="lubricant">Lubricant Report</SelectItem>
+                    <SelectItem value="running_hours">Running Hours (Crushers)</SelectItem>
                     <SelectItem value="dispatch">Dispatch Report</SelectItem>
                     <SelectItem value="incoming_stock">Incoming Stock</SelectItem>
                   </SelectContent>
