@@ -33,21 +33,21 @@ export const locationApi = {
 
 export const reportApi = {
   createReport: (reportData) => api.post('/reports', reportData),
-  getReports: (type) => api.get('/reports', { params: { report_type: type } }),
+  getReports: (type, businessType) => api.get('/reports', { params: { report_type: type, business_type: businessType } }),
 };
 
 export const indentApi = {
-  getIndents: () => api.get('/indents'),
+  getIndents: (params) => api.get('/indents', { params }),
   createIndent: (indentData) => api.post('/indents', indentData),
   authorizeIndent: (indentId, authData) => api.patch(`/indents/${indentId}/authorize`, authData),
 };
 
 export const accountingApi = {
   createTransaction: (transactionData) => api.post('/transactions', transactionData),
-  getTransactions: () => api.get('/transactions'),
+  getTransactions: (params) => api.get('/transactions', { params }),
   updateTransaction: (id, data) => api.put(`/transactions/${id}`, data),
-  getLedger: () => api.get('/ledger'),
-  getSummary: () => api.get('/accounting/summary'),
+  getLedger: (params) => api.get('/ledger', { params }),
+  getSummary: (params) => api.get('/accounting/summary', { params }),
   exportPdf: () => api.get('/export/transactions/pdf', { responseType: 'blob' }),
   exportCsv: () => api.get('/export/ledger/csv', { responseType: 'blob' }),
 };
