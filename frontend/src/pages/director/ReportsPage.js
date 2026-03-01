@@ -2,22 +2,25 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { reportApi } from '@/lib/api';
+import { BusinessFilter } from '@/components/BusinessFilter';
 import { toast } from 'sonner';
 import { FileText, Filter } from 'lucide-react';
 
 export default function ReportsPage() {
   const [reports, setReports] = useState([]);
   const [filterType, setFilterType] = useState('all');
+  const [businessFilter, setBusinessFilter] = useState('all');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchReports();
-  }, [filterType]);
+  }, [filterType, businessFilter]);
 
   const fetchReports = async () => {
     try {
       const type = filterType !== 'all' ? filterType : null;
-      const response = await reportApi.getReports(type);
+      const bType = businessFilter !== 'all' ? businessFilter : null;
+      const response = await reportApi.getReports(type, bType);
       setReports(response.data);
     } catch (error) {
       console.error('Failed to fetch reports:', error);
@@ -31,8 +34,11 @@ export default function ReportsPage() {
     const styles = {
       feeding: 'bg-green-100 text-green-700 border-green-200',
       diesel: 'bg-blue-100 text-blue-700 border-blue-200',
+      petrol: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+      lubricant: 'bg-purple-100 text-purple-700 border-purple-200',
       dispatch: 'bg-purple-100 text-purple-700 border-purple-200',
       incoming_stock: 'bg-orange-100 text-orange-700 border-orange-200',
+      running_hours: 'bg-red-100 text-red-700 border-red-200',
     };
     return styles[type] || 'bg-gray-100 text-gray-700';
   };
@@ -53,20 +59,26 @@ export default function ReportsPage() {
           <p className="text-muted-foreground mt-1">View all ground level entries</p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Filter size={18} className="text-muted-foreground" />
-          <Select value={filterType} onValueChange={setFilterType}>
-            <SelectTrigger className="w-48" data-testid="report-filter-select">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Reports</SelectItem>
-              <SelectItem value="feeding">Feeding Report</SelectItem>
-              <SelectItem value="diesel">Diesel Report</SelectItem>
-              <SelectItem value="dispatch">Dispatch Report</SelectItem>
-              <SelectItem value="incoming_stock">Incoming Stock</SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="flex items-center gap-3 flex-wrap">
+          <BusinessFilter value={businessFilter} onChange={setBusinessFilter} />
+          <div className="flex items-center gap-2">
+            <Filter size={16} className="text-muted-foreground" />
+            <Select value={filterType} onValueChange={setFilterType}>
+              <SelectTrigger className="w-[160px]" data-testid="report-filter-select">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="feeding">Feeding</SelectItem>
+                <SelectItem value="diesel">Diesel</SelectItem>
+                <SelectItem value="petrol">Petrol</SelectItem>
+                <SelectItem value="lubricant">Lubricant</SelectItem>
+                <SelectItem value="dispatch">Dispatch</SelectItem>
+                <SelectItem value="incoming_stock">Incoming Stock</SelectItem>
+                <SelectItem value="running_hours">Running Hours</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
@@ -82,7 +94,7 @@ export default function ReportsPage() {
                       {report.type.replace('_', ' ')}
                     </span>
                     {report.business_type && (
-                      <span className="text-xs px-2 py-1 rounded bg-secondary text-foreground">
+                      <span className="text-xs px-2 py-1 rounded bg-secondary text-foreground capitalize">
                         {report.business_type.replace('_', ' ')}
                       </span>
                     )}
@@ -91,9 +103,7 @@ export default function ReportsPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                     {Object.entries(report.data).map(([key, value]) => (
                       <div key={key} className="flex flex-col">
-                        <span className="text-muted-foreground text-xs uppercase tracking-wider">
-                          {key.replace('_', ' ')}
-                        </span>
+                        <span className="text-muted-foreground text-xs uppercase tracking-wider">{key.replace('_', ' ')}</span>
                         <span className="font-medium">{String(value)}</span>
                       </div>
                     ))}
@@ -101,9 +111,7 @@ export default function ReportsPage() {
                 </div>
 
                 <div className="text-right">
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(report.timestamp).toLocaleString()}
-                  </p>
+                  <p className="text-xs text-muted-foreground">{new Date(report.timestamp).toLocaleString()}</p>
                 </div>
               </div>
             </CardContent>
@@ -115,7 +123,7 @@ export default function ReportsPage() {
         <Card>
           <CardContent className="p-12 text-center">
             <FileText size={48} className="mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">No reports available</p>
+            <p className="text-muted-foreground">No reports found{businessFilter !== 'all' ? ' for this business' : ''}</p>
           </CardContent>
         </Card>
       )}
