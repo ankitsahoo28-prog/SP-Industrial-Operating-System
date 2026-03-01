@@ -17,6 +17,11 @@ from enum import Enum
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
+# Import custom services
+from email_service import send_task_assignment_email, send_indent_approval_email
+from ai_service import generate_business_insights, categorize_expense
+from i18n import get_translation
+
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
