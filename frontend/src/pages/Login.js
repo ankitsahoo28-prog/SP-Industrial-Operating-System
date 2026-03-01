@@ -51,11 +51,11 @@ export default function Login() {
       {/* Content */}
       <div className="relative z-10 w-full max-w-md px-4">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center bg-white rounded-2xl mb-6 px-10 py-6 shadow-2xl">
+          <div className="inline-flex items-center justify-center bg-white rounded-2xl mb-6 px-12 py-6 shadow-2xl">
             <img
               src="/sp-logo.png"
               alt="SP Group"
-              className="h-24 w-auto object-contain"
+              className="h-28 w-auto object-contain"
               data-testid="login-logo"
             />
           </div>
