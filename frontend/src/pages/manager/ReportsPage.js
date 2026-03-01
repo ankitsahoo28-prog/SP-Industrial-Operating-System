@@ -81,10 +81,12 @@ export default function ReportsPage() {
           </>
         );
       case 'diesel':
+      case 'petrol':
+      case 'lubricant':
         return (
           <>
             <div className="space-y-2">
-              <Label>Equipment ID</Label>
+              <Label>Equipment/Vehicle ID</Label>
               <Input
                 value={reportData.equipment_id || ''}
                 onChange={(e) => setReportData({ ...reportData, equipment_id: e.target.value })}
@@ -92,21 +94,98 @@ export default function ReportsPage() {
               />
             </div>
             <div className="space-y-2">
+              <Label>{reportType === 'lubricant' ? 'Lubricant Type' : 'Quantity (Liters)'}</Label>
+              <Input
+                type={reportType === 'lubricant' ? 'text' : 'number'}
+                value={reportType === 'lubricant' ? (reportData.lubricant_type || '') : (reportData.quantity || '')}
+                onChange={(e) => setReportData({ 
+                  ...reportData, 
+                  [reportType === 'lubricant' ? 'lubricant_type' : 'quantity']: e.target.value 
+                })}
+                required
+              />
+            </div>
+            {reportType === 'lubricant' && (
+              <div className="space-y-2">
+                <Label>Quantity (Liters)</Label>
+                <Input
+                  type="number"
+                  value={reportData.quantity || ''}
+                  onChange={(e) => setReportData({ ...reportData, quantity: e.target.value })}
+                  required
+                />
+              </div>
+            )}
+            {reportType === 'diesel' && (
+              <div className="space-y-2">
+                <Label>Running Hours</Label>
+                <Input
+                  type="number"
+                  value={reportData.running_hours || ''}
+                  onChange={(e) => setReportData({ ...reportData, running_hours: e.target.value })}
+                />
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>Notes</Label>
+              <Input
+                value={reportData.notes || ''}
+                onChange={(e) => setReportData({ ...reportData, notes: e.target.value })}
+              />
+            </div>
+          </>
+        );
+      case 'running_hours':
+        return (
+          <>
+            <div className="space-y-2">
+              <Label>Equipment/Machine ID</Label>
+              <Input
+                value={reportData.equipment_id || ''}
+                onChange={(e) => setReportData({ ...reportData, equipment_id: e.target.value })}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Equipment Type</Label>
+              <Select
+                value={reportData.equipment_type || ''}
+                onValueChange={(value) => setReportData({ ...reportData, equipment_type: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value=\"crusher\">Crusher</SelectItem>
+                  <SelectItem value=\"slag_crusher\">Slag Crusher</SelectItem>
+                  <SelectItem value=\"stone_crusher\">Stone Crusher</SelectItem>
+                  <SelectItem value=\"other\">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
               <Label>Running Hours</Label>
               <Input
                 type="number"
+                step="0.1"
                 value={reportData.running_hours || ''}
                 onChange={(e) => setReportData({ ...reportData, running_hours: e.target.value })}
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label>Diesel Consumed (Liters)</Label>
+              <Label>Production Output (if applicable)</Label>
               <Input
-                type="number"
-                value={reportData.diesel_consumed || ''}
-                onChange={(e) => setReportData({ ...reportData, diesel_consumed: e.target.value })}
-                required
+                value={reportData.production_output || ''}
+                onChange={(e) => setReportData({ ...reportData, production_output: e.target.value })}
+                placeholder="e.g., 500 tons"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Notes</Label>
+              <Input
+                value={reportData.notes || ''}
+                onChange={(e) => setReportData({ ...reportData, notes: e.target.value })}
               />
             </div>
           </>
