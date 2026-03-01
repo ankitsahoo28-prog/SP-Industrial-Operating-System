@@ -9,7 +9,7 @@ import TasksPage from './director/TasksPage';
 import TrackingPage from './director/TrackingPage';
 import ReportsPage from './director/ReportsPage';
 import IndentsPage from './director/IndentsPage';
-import PayrollPage from './director/PayrollPage';
+import AccountingPage from './director/AccountingPage';
 
 const StatCard = ({ icon: Icon, title, value, description, color }) => (
   <Card className="hover:shadow-md transition-shadow">
