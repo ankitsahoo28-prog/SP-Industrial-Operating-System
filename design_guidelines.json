@@ -1,0 +1,177 @@
+{
+  "identity": {
+    "name": "SP",
+    "tagline": "The Industrial Operating System",
+    "description": "A unified management platform for multi-vertical industrial businesses, bridging the gap between ground operations and executive decision-making.",
+    "archetype": "The Performance Pro",
+    "vibe": "Industrial, Precision, High-Contrast, Data-Centric"
+  },
+  "typography": {
+    "fonts": {
+      "headings": {
+        "family": "Manrope",
+        "weights": ["600", "700", "800"],
+        "usage": "Page titles, widget headers, key metrics",
+        "fallback": "sans-serif"
+      },
+      "body": {
+        "family": "Public Sans",
+        "weights": ["400", "500", "600"],
+        "usage": "General text, tables, form labels",
+        "fallback": "sans-serif"
+      },
+      "mono": {
+        "family": "JetBrains Mono",
+        "usage": "Transaction IDs, VIN numbers, technical codes",
+        "fallback": "monospace"
+      }
+    },
+    "scale": {
+      "h1": "text-4xl md:text-5xl tracking-tight font-bold",
+      "h2": "text-3xl md:text-4xl tracking-tight font-bold",
+      "h3": "text-2xl md:text-3xl font-semibold",
+      "h4": "text-xl font-semibold",
+      "body-lg": "text-lg leading-relaxed",
+      "body-base": "text-base leading-relaxed",
+      "caption": "text-sm text-muted-foreground uppercase tracking-wider"
+    }
+  },
+  "colors": {
+    "palette": {
+      "primary": {
+        "name": "Industrial Blue",
+        "hex": "#0F172A",
+        "hsl": "222 47% 11%",
+        "usage": "Main navigation, primary buttons, headers"
+      },
+      "secondary": {
+        "name": "Slate Grey",
+        "hex": "#F1F5F9",
+        "hsl": "210 40% 96%",
+        "usage": "Backgrounds, secondary buttons, input fills"
+      },
+      "accent": {
+        "name": "Safety Orange",
+        "hex": "#F97316",
+        "hsl": "24 94% 53%",
+        "usage": "CTAs, alerts, active states, highlights"
+      },
+      "background": {
+        "light": "#FFFFFF",
+        "dark": "#020617"
+      },
+      "status": {
+        "success": "#10B981",
+        "warning": "#F59E0B",
+        "error": "#EF4444",
+        "info": "#3B82F6"
+      }
+    },
+    "gradients": {
+      "primary": "bg-gradient-to-br from-slate-900 to-slate-800",
+      "accent": "bg-gradient-to-r from-orange-500 to-orange-600",
+      "glass": "bg-white/10 backdrop-blur-md border border-white/20"
+    }
+  },
+  "layout": {
+    "spacing": {
+      "container": "p-4 md:p-8 lg:p-12",
+      "card": "p-6 space-y-4",
+      "section": "py-12 md:py-24"
+    },
+    "grid_system": {
+      "dashboard": "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6",
+      "bento_hero": "grid grid-cols-1 md:grid-cols-3 gap-4 md:grid-rows-2",
+      "form": "grid grid-cols-1 md:grid-cols-2 gap-6"
+    },
+    "containers": {
+      "card": "bg-card text-card-foreground rounded-xl border shadow-sm",
+      "panel": "bg-background rounded-2xl border shadow-md",
+      "modal": "bg-background rounded-xl shadow-2xl border"
+    }
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm transition-all active:scale-95",
+      "secondary": "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+      "outline": "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+      "ghost": "hover:bg-accent hover:text-accent-foreground",
+      "destructive": "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+    },
+    "inputs": {
+      "default": "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+      "mobile_optimized": "h-12 text-base"
+    },
+    "cards": {
+      "metric": "p-6 flex flex-col justify-between items-start space-y-2",
+      "feature": "p-8 border-l-4 border-primary bg-gradient-to-br from-background to-secondary/20"
+    },
+    "navigation": {
+      "sidebar": "fixed left-0 top-0 bottom-0 w-64 bg-card border-r z-40 hidden lg:flex flex-col",
+      "mobile_bottom": "fixed bottom-0 left-0 right-0 h-16 bg-background border-t z-50 flex justify-around items-center lg:hidden"
+    }
+  },
+  "visual_enhancers": {
+    "shadows": {
+      "soft": "shadow-[0_4px_12px_rgba(0,0,0,0.05)]",
+      "glass": "shadow-[0_8px_32px_rgba(31,38,135,0.07)]",
+      "neon": "shadow-[0_0_10px_rgba(249,115,22,0.5)]"
+    },
+    "borders": {
+      "default": "border border-border",
+      "active": "border-l-4 border-l-primary"
+    },
+    "textures": {
+      "noise": "bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-50",
+      "grid": "bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"
+    }
+  },
+  "assets": {
+    "images": {
+      "petrol_pump": "https://images.unsplash.com/photo-1759499693571-7f1ccac5b51e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njl8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBwZXRyb2wlMjBwdW1wJTIwc3RhdGlvbiUyMGF0JTIwbmlnaHR8ZW58MHx8fHwxNzcyMzczOTkzfDA&ixlib=rb-4.1.0&q=85",
+      "hotel": "https://images.unsplash.com/photo-1768346564825-6f90c0b89e2e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NjZ8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBob3RlbCUyMGxvYmJ5JTIwaW50ZXJpb3IlMjBtb2Rlcm58ZW58MHx8fHwxNzcyMzczOTk1fDA&ixlib=rb-4.1.0&q=85",
+      "fl_shop": "https://images.unsplash.com/photo-1763888537845-8fcf31cb0570?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzZ8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjB3aW5lJTIwc2hvcCUyMGludGVyaW9yJTIwc2hlbHZlcyUyMGJvdHRsZXxlbnwwfHx8fDE3NzIzNzM5OTV8MA&ixlib=rb-4.1.0&q=85",
+      "transport": "https://images.unsplash.com/photo-1730189695336-9976f883421c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1ODF8MHwxfHNlYXJjaHwxfHNlYXJjaHwxfHxsb2dpc3RpY3MlMjB0cnVjayUyMGZsZWV0JTIwb24lMjByb2FkfGVufDB8fHx8MTc3MjM3Mzk5Nnww&ixlib=rb-4.1.0&q=85",
+      "slag_crusher": "https://images.unsplash.com/photo-1727504172743-08f14448fab8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w8NjAzOTB8MHwxfHNlYXJjaHwxfHxpbmR1c3RyaWFsJTIwc2xhZyUyMGNydXNoaW5nJTIwcGxhbnQlMjBtYWNoaW5lcnl8ZW58MHx8fHwxNzcyMzczOTk3fDA&ixlib=rb-4.1.0&q=85",
+      "stone_crusher": "https://images.unsplash.com/photo-1524391697575-8ea102803604?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzZ8MHwxfHNlYXJjaHwxfHxzdG9uZSUyMGNydXNoZXIlMjBtaW5pbmclMjBlcXVpcG1lbnQlMjBxdWFycnl8ZW58MHx8fHwxNzcyMzczOTk3fDA&ixlib=rb-4.1.0&q=85"
+    },
+    "icons": {
+      "library": "lucide-react",
+      "style": "Stroke width 1.5px, size 20px for default, 24px for navigation"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Install 'lucide-react', 'recharts', 'framer-motion', 'clsx', 'tailwind-merge', 'date-fns', 'react-day-picker' immediately.",
+    "Update 'tailwind.config.js' to include the new colors and fonts. Map 'primary' to '#0F172A' and 'accent' to '#F97316'.",
+    "Create a 'Layout' component that handles the Sidebar (Desktop) and BottomNav (Mobile) switching based on screen size.",
+    "For the 'Geolocation' feature, use the browser's Geolocation API and visualize it using a simple placeholder map or 'react-leaflet' if complex mapping is needed (prefer simple list/status first).",
+    "Ensure 'Ground Staff' views are strictly mobile-first: large buttons, minimal text, high contrast.",
+    "Implement 'Role-Based Access Control' (RBAC) in the frontend routing logic (e.g., <ProtectedRoute role='director' />).",
+    "Use 'Recharts' for the Business Intelligence dashboards. Create simple Bar and Line charts for sales/stock.",
+    "For 'Payroll', create a table view for Directors/Managers that aggregates attendance data.",
+    "For 'Indents', create a card-based approval flow for Managers."
+  ],
+  "universal_guidelines": [
+    "You tend to converge toward generic, 'on distribution' outputs. In frontend design, this creates what users call the 'AI slop' aesthetic. Avoid this: make creative, distinctive frontends that surprise and delight.",
+    "Dark colors look good when used independently without gradients. DO NOT use dark colors as gradients.",
+    "Don't make generic centered layouts, simplistic gradients, and uniform styling.",
+    "Create depth through layered design elements with z-index hierarchy.",
+    "Use glass-morphism effects with backdrop filters (12-24px blur).",
+    "You MUST NOT apply universal transition. Eg: 'transition: all'. This results in breaking transforms. Always add transitions for specific interactive elements like button, input excluding transforms.",
+    "You MUST NOT center align the app container, ie do not add '.App { text-align: center; }' in the css file. This disrupts the human natural reading flow of text.",
+    "Always use modern button styles like pill-shaped, or sharp button with interaction animations & color relevant to the app style.",
+    "NEVER: use AI assistant Emoji characters like 🤖🧠💭💡🔮🎯📚🎭🎬🎪🎉🎊🎁🎀🎂🍰🎈🎨🎰💰💵💳🏦💎🪙💸🤑📊📈📉💹🔢🏆🥇 etc for icons.",
+    "Every interaction needs micro-animations - hover states, transitions, parallax effects, and entrance animations. Static = dead.",
+    "Use 2-3x more spacing than feels comfortable. Cramped designs look cheap.",
+    "Subtle grain textures, noise overlays, custom cursors, selection states, and loading animations: separates good from extraordinary.",
+    "Main agent relies on these image URLs. Missing categories (especially sponsor logos) = main agent will use placeholder text which is FORBIDDEN",
+    "Prioritize using pre-existing components from src/components/ui when applicable.",
+    "Create new components that match the style and conventions of existing components when needed.",
+    "Examine existing components to understand the project's component patterns before creating new ones.",
+    "Components MUST use named exports (export const ComponentName = ...).",
+    "Pages MUST use default exports (export default function PageName() {...}).",
+    "Use 'sonner' for toasts.",
+    "Sonner component are located in '/app/src/components/ui/sonner.tsx'",
+    "All interactive and key informational elements MUST include a 'data-testid' attribute to facilitate robust automated testing."
+  ]
+}
