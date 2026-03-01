@@ -229,6 +229,18 @@ class InventoryItemCreate(BaseModel):
     unit: str
     business_type: Optional[BusinessType] = None
 
+# Audit Log Model
+class AuditLog(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    action: str  # 'create', 'update', 'delete'
+    entity_type: str  # 'transaction', 'user', 'task', etc.
+    entity_id: str
+    user_id: str
+    old_data: Optional[Dict[str, Any]] = None
+    new_data: Optional[Dict[str, Any]] = None
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
 # Helper Functions
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
