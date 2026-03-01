@@ -178,7 +178,7 @@ export default function DirectorDashboard() {
         <Route path="tracking" element={<TrackingPage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="indents" element={<IndentsPage />} />
-        <Route path="payroll" element={<PayrollPage />} />
+        <Route path="accounting" element={<AccountingPage />} />
       </Routes>
     </Layout>
   );
