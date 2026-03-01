@@ -62,36 +62,91 @@ const DashboardHome = () => {
         <p className="text-muted-foreground">Complete overview of all operations</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard
-          icon={Users}
-          title="Total Users"
-          value={stats?.total_users || 0}
-          description="Active workforce"
-          color="bg-blue-500"
-        />
-        <StatCard
-          icon={ClipboardList}
-          title="Active Tasks"
-          value={stats?.total_tasks || 0}
-          description={`${stats?.pending_tasks || 0} pending`}
-          color="bg-accent"
-        />
-        <StatCard
-          icon={FileText}
-          title="Reports"
-          value={stats?.total_reports || 0}
-          description="Ground level entries"
-          color="bg-green-500"
-        />
-        <StatCard
-          icon={Package}
-          title="Indents"
-          value={stats?.pending_indents || 0}
-          description="Awaiting approval"
-          color="bg-purple-500"
-        />
+      {/* Overall Stats */}
+      <div>
+        <h2 className="text-2xl font-heading font-semibold mb-4">Overall Statistics</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <StatCard
+            icon={Users}
+            title="Total Users"
+            value={stats?.total_users || 0}
+            description="Active workforce"
+            color="bg-blue-500"
+          />
+          <StatCard
+            icon={ClipboardList}
+            title="Active Tasks"
+            value={stats?.total_tasks || 0}
+            description={`${stats?.pending_tasks || 0} pending`}
+            color="bg-accent"
+          />
+          <StatCard
+            icon={FileText}
+            title="Reports"
+            value={stats?.total_reports || 0}
+            description="Ground level entries"
+            color="bg-green-500"
+          />
+          <StatCard
+            icon={Package}
+            title="Indents"
+            value={stats?.pending_indents || 0}
+            description="Awaiting approval"
+            color="bg-purple-500"
+          />
+        </div>
       </div>
+
+      {/* Business-wise Data */}
+      {stats?.business_stats && stats.business_stats.length > 0 && (
+        <div>
+          <h2 className="text-2xl font-heading font-semibold mb-4">Business Performance</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {stats.business_stats.map((business) => (
+              <Card key={business.business_type} className="hover:shadow-md transition-shadow">
+                <CardHeader>
+                  <CardTitle className="text-lg">{business.business_name}</CardTitle>
+                  <CardDescription className="capitalize">{business.business_type.replace('_', ' ')}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Users</span>
+                    <span className="font-semibold">{business.total_users}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Tasks</span>
+                    <span className="font-semibold">{business.total_tasks} ({business.pending_tasks} pending)</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Reports</span>
+                    <span className="font-semibold">{business.total_reports}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Indents</span>
+                    <span className="font-semibold">{business.pending_indents} pending</span>
+                  </div>
+                  <div className="pt-3 border-t">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-sm text-muted-foreground">Income</span>
+                      <span className="font-semibold text-success">\u20b9{business.total_income.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-sm text-muted-foreground">Expense</span>
+                      <span className="font-semibold text-error">\u20b9{business.total_expense.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center mt-2 pt-2 border-t">
+                      <span className="text-sm font-semibold">Net Profit</span>
+                      <span className={`font-bold ${business.net_profit >= 0 ? 'text-success' : 'text-error'}`}>
+                        \u20b9{business.net_profit.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
