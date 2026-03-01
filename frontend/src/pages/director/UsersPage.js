@@ -202,6 +202,17 @@ export default function UsersPage() {
                     </span>
                   </div>
                 </div>
+                {user.role !== 'director' && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-error hover:text-error hover:bg-error/10"
+                    onClick={() => { setUserToDelete(user); setDeleteDialogOpen(true); }}
+                    data-testid={`delete-user-${user.id}`}
+                  >
+                    <Trash2 size={16} />
+                  </Button>
+                )}
               </div>
 
               <div className="space-y-2 text-sm">
