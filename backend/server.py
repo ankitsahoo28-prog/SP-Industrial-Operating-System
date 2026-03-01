@@ -391,7 +391,7 @@ async def create_user(user_data: UserCreate, current_user: dict = Depends(get_cu
 
 # Task Routes
 @api_router.get("/tasks", response_model=List[Task])
-async def get_tasks(current_user: dict = Depends(get_current_user)):
+async def get_tasks(business_type: Optional[str] = None, current_user: dict = Depends(get_current_user)):
     query = {}
     
     if current_user['role'] == UserRole.GROUND_STAFF:
@@ -408,8 +408,9 @@ async def get_tasks(current_user: dict = Depends(get_current_user)):
                 {'business_type': None}
             ]
     elif current_user['role'] == UserRole.DIRECTOR:
-        # Directors see all tasks
-        pass
+        # Directors see all tasks, optionally filtered
+        if business_type and business_type != 'all':
+            query['business_type'] = business_type
     
     tasks = await db.tasks.find(query, {'_id': 0}).to_list(1000)
     
@@ -538,6 +539,7 @@ async def create_report(report_data: ReportCreate, current_user: dict = Depends(
 @api_router.get("/reports", response_model=List[Report])
 async def get_reports(
     report_type: Optional[ReportType] = None,
+    business_type: Optional[str] = None,
     current_user: dict = Depends(get_current_user)
 ):
     query = {}
@@ -547,6 +549,8 @@ async def get_reports(
     # Filter by business type for non-directors
     if current_user['role'] != UserRole.DIRECTOR and current_user.get('business_type'):
         query['business_type'] = current_user['business_type']
+    elif current_user['role'] == UserRole.DIRECTOR and business_type and business_type != 'all':
+        query['business_type'] = business_type
     
     if current_user['role'] == UserRole.GROUND_STAFF:
         query['user_id'] = current_user['user_id']
@@ -577,11 +581,13 @@ async def create_indent(indent_data: IndentCreate, current_user: dict = Depends(
     return indent
 
 @api_router.get("/indents", response_model=List[Indent])
-async def get_indents(current_user: dict = Depends(get_current_user)):
+async def get_indents(business_type: Optional[str] = None, current_user: dict = Depends(get_current_user)):
     query = {}
     
     if current_user['role'] == UserRole.MANAGER:
         query['requested_by'] = current_user['user_id']
+    elif current_user['role'] == UserRole.DIRECTOR and business_type and business_type != 'all':
+        query['business_type'] = business_type
     
     indents = await db.indents.find(query, {'_id': 0}).sort('created_at', -1).to_list(1000)
     
@@ -647,12 +653,14 @@ async def create_transaction(transaction_data: TransactionCreate, current_user: 
     return transaction
 
 @api_router.get("/transactions", response_model=List[Transaction])
-async def get_transactions(current_user: dict = Depends(get_current_user)):
+async def get_transactions(business_type: Optional[str] = None, current_user: dict = Depends(get_current_user)):
     query = {}
     
     # Filter by business type for non-directors
     if current_user['role'] != UserRole.DIRECTOR and current_user.get('business_type'):
         query['business_type'] = current_user['business_type']
+    elif current_user['role'] == UserRole.DIRECTOR and business_type and business_type != 'all':
+        query['business_type'] = business_type
     
     transactions = await db.transactions.find(query, {'_id': 0}).sort('date', -1).to_list(1000)
     
@@ -665,10 +673,12 @@ async def get_transactions(current_user: dict = Depends(get_current_user)):
     return transactions
 
 @api_router.get("/ledger")
-async def get_ledger(current_user: dict = Depends(get_current_user)):
+async def get_ledger(business_type: Optional[str] = None, current_user: dict = Depends(get_current_user)):
     query = {}
     if current_user['role'] != UserRole.DIRECTOR and current_user.get('business_type'):
         query['business_type'] = current_user['business_type']
+    elif current_user['role'] == UserRole.DIRECTOR and business_type and business_type != 'all':
+        query['business_type'] = business_type
     
     transactions = await db.transactions.find(query, {'_id': 0}).sort('date', 1).to_list(10000)
     
@@ -693,10 +703,12 @@ async def get_ledger(current_user: dict = Depends(get_current_user)):
     return ledger_entries
 
 @api_router.get("/accounting/summary")
-async def get_accounting_summary(current_user: dict = Depends(get_current_user)):
+async def get_accounting_summary(business_type: Optional[str] = None, current_user: dict = Depends(get_current_user)):
     query = {}
     if current_user['role'] != UserRole.DIRECTOR and current_user.get('business_type'):
         query['business_type'] = current_user['business_type']
+    elif current_user['role'] == UserRole.DIRECTOR and business_type and business_type != 'all':
+        query['business_type'] = business_type
     
     transactions = await db.transactions.find(query, {'_id': 0}).to_list(10000)
     
