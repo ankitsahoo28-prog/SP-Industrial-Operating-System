@@ -1059,8 +1059,142 @@ async def get_translations(lang: str):
     from i18n import translations
     return translations.get(lang, translations["en"])
 
+# Export Endpoints
+@api_router.get("/export/transactions/pdf")
+async def export_transactions_pdf(current_user: dict = Depends(get_current_user)):
+    if current_user['role'] == UserRole.GROUND_STAFF:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    query = {}
+    if current_user['role'] != UserRole.DIRECTOR and current_user.get('business_type'):
+        query['business_type'] = current_user['business_type']
+    
+    transactions = await db.transactions.find(query, {'_id': 0}).sort('date', -1).to_list(1000)
+    
+    # Get summary
+    total_income = sum(t['amount'] for t in transactions if t['transaction_type'] == 'income')
+    total_expense = sum(t['amount'] for t in transactions if t['transaction_type'] == 'expense')
+    
+    cash_income = sum(t['amount'] for t in transactions if t['transaction_type'] == 'income' and t['payment_mode'] == 'cash')
+    bank_income = sum(t['amount'] for t in transactions if t['transaction_type'] == 'income' and t['payment_mode'] == 'bank')
+    cash_expense = sum(t['amount'] for t in transactions if t['transaction_type'] == 'expense' and t['payment_mode'] == 'cash')
+    bank_expense = sum(t['amount'] for t in transactions if t['transaction_type'] == 'expense' and t['payment_mode'] == 'bank')
+    
+    summary = {
+        'total_income': total_income,
+        'total_expense': total_expense,
+        'net_profit': total_income - total_expense,
+        'cash_balance': cash_income - cash_expense,
+        'bank_balance': bank_income - bank_expense
+    }
+    
+    pdf_bytes = generate_transaction_pdf(transactions, summary)
+    
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=transactions_{datetime.now().strftime('%Y%m%d')}.pdf"}
+    )
+
+@api_router.get("/export/ledger/csv")
+async def export_ledger_csv(current_user: dict = Depends(get_current_user)):
+    if current_user['role'] == UserRole.GROUND_STAFF:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    query = {}
+    if current_user['role'] != UserRole.DIRECTOR and current_user.get('business_type'):
+        query['business_type'] = current_user['business_type']
+    
+    transactions = await db.transactions.find(query, {'_id': 0}).sort('date', 1).to_list(10000)
+    
+    # Calculate running balance
+    balance = 0
+    ledger_entries = []
+    
+    for trans in transactions:
+        if trans['transaction_type'] == 'income':
+            balance += trans['amount']
+        else:
+            balance -= trans['amount']
+        
+        ledger_entries.append({
+            **trans,
+            'balance': balance
+        })
+    
+    csv_content = generate_ledger_csv(ledger_entries)
+    
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=ledger_{datetime.now().strftime('%Y%m%d')}.csv"}
+    )
+
+@api_router.get("/export/inventory/pdf")
+async def export_inventory_pdf(current_user: dict = Depends(get_current_user)):
+    if current_user['role'] == UserRole.GROUND_STAFF:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    query = {}
+    if current_user['role'] != UserRole.DIRECTOR and current_user.get('business_type'):
+        query['business_type'] = current_user['business_type']
+    
+    items = await db.inventory.find(query, {'_id': 0}).sort('item_name', 1).to_list(1000)
+    
+    pdf_bytes = generate_inventory_pdf(items)
+    
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=inventory_{datetime.now().strftime('%Y%m%d')}.pdf"}
+    )
+
+# Historical Trend Data
+@api_router.get("/dashboard/trends")
+async def get_trends(current_user: dict = Depends(get_current_user)):
+    if current_user['role'] != UserRole.DIRECTOR:
+        raise HTTPException(status_code=403, detail="Only directors can view trends")
+    
+    # Get last 6 months data
+    six_months_ago = datetime.now(timezone.utc) - timedelta(days=180)
+    
+    transactions = await db.transactions.find({
+        'date': {'$gte': six_months_ago.isoformat()}
+    }, {'_id': 0}).to_list(10000)
+    
+    # Group by month
+    from collections import defaultdict
+    monthly_data = defaultdict(lambda: {'income': 0, 'expense': 0, 'count': 0})
+    
+    for trans in transactions:
+        date_obj = datetime.fromisoformat(trans['date'])
+        month_key = date_obj.strftime('%Y-%m')
+        
+        if trans['transaction_type'] == 'income':
+            monthly_data[month_key]['income'] += trans['amount']
+        else:
+            monthly_data[month_key]['expense'] += trans['amount']
+        monthly_data[month_key]['count'] += 1
+    
+    # Convert to list sorted by month
+    trends = []
+    for month in sorted(monthly_data.keys()):
+        data = monthly_data[month]
+        trends.append({
+            'month': month,
+            'income': round(data['income'], 2),
+            'expense': round(data['expense'], 2),
+            'profit': round(data['income'] - data['expense'], 2),
+            'transactions': data['count']
+        })
+    
+    return trends
+
 # Include router
 app.include_router(api_router)
+
+# Mount Socket.IO
+socket_app = socketio.ASGIApp(sio, app)
 
 app.add_middleware(
     CORSMiddleware,
