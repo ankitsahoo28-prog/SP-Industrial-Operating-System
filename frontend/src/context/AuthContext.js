@@ -119,7 +119,7 @@ export const AuthProvider = ({ children }) => {
       // Initialize WebSocket
       initializeSocket(newToken, userData.id);
       
-      return { success: true };
+      return { success: true, user: userData };
     } catch (error) {
       return { success: false, error: error.response?.data?.detail || 'Login failed' };
     }
