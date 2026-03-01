@@ -1,0 +1,45 @@
+{
+  "timestamp": "2026-03-01T14:19:45.054871",
+  "total_tests": 23,
+  "passed_tests": 19,
+  "success_rate": 82.6086956521739,
+  "detailed_results": [
+    {
+      "test_name": "Login - Director",
+      "success": true,
+      "status_code": 200,
+      "error": null
+    },
+    {
+      "test_name": "Login - Manager",
+      "success": true,
+      "status_code": 200,
+      "error": null
+    },
+    {
+      "test_name": "Login - Ground_Staff",
+      "success": true,
+      "status_code": 200,
+      "error": null
+    },
+    {
+      "test_name": "Dashboard Stats (Director)",
+      "success": true,
+      "status_code": 200,
+      "error": null
+    },
+    {
+      "test_name": "Get Users (Director)",
+      "success": true,
+      "status_code": 200,
+      "error": null
+    },
+    {
+      "test_name": "Get Users (Manager)",
+      "success": true,
+      "status_code": 200,
+      "error": null
+    },
+    {
+      "test_name": "Get Users Blocked (Ground Staff)",
+      "success": 
