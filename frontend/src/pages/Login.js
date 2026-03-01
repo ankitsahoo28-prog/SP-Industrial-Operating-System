@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { LogIn, Factory } from 'lucide-react';
+import { LogIn } from 'lucide-react';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -32,17 +32,36 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800 p-4">
-      <div className="w-full max-w-md">
+    <div className="relative min-h-screen flex items-center justify-center overflow-hidden" data-testid="login-page">
+      {/* Background Video */}
+      <video
+        autoPlay
+        loop
+        muted
+        playsInline
+        className="absolute inset-0 w-full h-full object-cover"
+        data-testid="login-bg-video"
+      >
+        <source src="/bg-video.mp4" type="video/mp4" />
+      </video>
+
+      {/* Dark Overlay */}
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" />
+
+      {/* Content */}
+      <div className="relative z-10 w-full max-w-md px-4">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-24 h-24 bg-white rounded-2xl mb-4 p-3">
-            <img src="/logo192.png" alt="SP Logo" className="w-full h-full object-contain" />
+          <div className="inline-flex items-center justify-center bg-white rounded-2xl mb-4 px-6 py-4 shadow-xl">
+            <img
+              src="/sp-logo.png"
+              alt="SP Group"
+              className="h-16 object-contain"
+              data-testid="login-logo"
+            />
           </div>
-          <h1 className="text-4xl font-heading font-bold text-white mb-2">SP</h1>
-          <p className="text-slate-300">The Industrial Operating System</p>
         </div>
 
-        <Card className="shadow-2xl">
+        <Card className="shadow-2xl border-0 bg-white/95 backdrop-blur-sm">
           <CardHeader>
             <CardTitle className="text-2xl font-heading">Welcome Back</CardTitle>
             <CardDescription>Sign in to access your dashboard</CardDescription>
