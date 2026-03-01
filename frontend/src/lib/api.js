@@ -7,7 +7,6 @@ export const api = axios.create({
   baseURL: API,
 });
 
-// Add token to all requests
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
@@ -16,7 +15,6 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// API functions
 export const userApi = {
   getUsers: () => api.get('/users'),
   createUser: (userData) => api.post('/users', userData),
@@ -42,6 +40,18 @@ export const indentApi = {
   getIndents: () => api.get('/indents'),
   createIndent: (indentData) => api.post('/indents', indentData),
   authorizeIndent: (indentId, authData) => api.patch(`/indents/${indentId}/authorize`, authData),
+};
+
+export const accountingApi = {
+  createTransaction: (transactionData) => api.post('/transactions', transactionData),
+  getTransactions: () => api.get('/transactions'),
+  getLedger: () => api.get('/ledger'),
+  getSummary: () => api.get('/accounting/summary'),
+};
+
+export const inventoryApi = {
+  createItem: (itemData) => api.post('/inventory', itemData),
+  getItems: () => api.get('/inventory'),
 };
 
 export const dashboardApi = {
