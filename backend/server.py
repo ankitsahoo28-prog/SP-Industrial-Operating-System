@@ -954,14 +954,14 @@ async def get_predictions(current_user: dict = Depends(get_current_user)):
         # Generate AI predictions using OpenAI
         from ai_service import client
         
-        prompt = f\"\"\"
+        prompt = f"""
 Based on the following historical data from an industrial business, predict next month's financial and inventory needs.
 
 Historical Data (Last 3 months):
-- Total Income: \u20b9{total_income:.2f}
-- Total Expense: \u20b9{total_expense:.2f}
-- Average Monthly Income: \u20b9{avg_monthly_income:.2f}
-- Average Monthly Expense: \u20b9{avg_monthly_expense:.2f}
+- Total Income: ₹{total_income:.2f}
+- Total Expense: ₹{total_expense:.2f}
+- Average Monthly Income: ₹{avg_monthly_income:.2f}
+- Average Monthly Expense: ₹{avg_monthly_expense:.2f}
 - Number of Transactions: {len(transactions)}
 - Number of Reports Filed: {len(reports)}
 - Active Inventory Items: {len(inventory_items)}
@@ -986,13 +986,13 @@ Provide predictions in this exact JSON format (no markdown, just JSON):
 }}
 
 Ensure all numbers are realistic and based on the trends.
-\"\"\"
+"""
         
         response = client.chat.completions.create(
-            model=\"gpt-4o-mini\",
+            model="gpt-4o-mini",
             messages=[
-                {\"role\": \"system\", \"content\": \"You are a financial forecasting AI. Always respond with valid JSON only.\"},
-                {\"role\": \"user\", \"content\": prompt}
+                {"role": "system", "content": "You are a financial forecasting AI. Always respond with valid JSON only."},
+                {"role": "user", "content": prompt}
             ],
             temperature=0.5,
             max_tokens=1000
