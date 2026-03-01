@@ -35,7 +35,7 @@ export const Layout = ({ children, role }) => {
         { icon: MapPin, label: 'Tracking', path: '/tracking' },
         { icon: FileText, label: 'Reports', path: '/reports' },
         { icon: Package, label: 'Indents', path: '/indents' },
-        { icon: DollarSign, label: 'Payroll', path: '/payroll' },
+        { icon: DollarSign, label: 'Accounting', path: '/accounting' },
       ];
     } else if (role === 'manager') {
       return [
@@ -45,6 +45,8 @@ export const Layout = ({ children, role }) => {
         { icon: MapPin, label: 'Tracking', path: '/tracking' },
         { icon: FileText, label: 'Reports', path: '/reports' },
         { icon: Package, label: 'Indents', path: '/indents' },
+        { icon: DollarSign, label: 'Accounting', path: '/accounting' },
+        { icon: Package, label: 'Inventory', path: '/inventory' },
       ];
     } else {
       return [
