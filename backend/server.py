@@ -1015,38 +1015,38 @@ Ensure all numbers are realistic and based on the trends.
             for item in inventory_items:
                 if item['current_stock'] < item['opening_stock'] * 0.3:
                     low_stock_items.append({
-                        \"item_name\": item['item_name'],
-                        \"predicted_quantity\": item['opening_stock'] * 0.5,
-                        \"unit\": item['unit'],
-                        \"current_stock\": item['current_stock']
+                        "item_name": item['item_name'],
+                        "predicted_quantity": item['opening_stock'] * 0.5,
+                        "unit": item['unit'],
+                        "current_stock": item['current_stock']
                     })
             if low_stock_items:
                 predictions['inventory_alerts'] = low_stock_items[:5]
         
-        logger.info(\"Generated AI predictions successfully\")
+        logger.info("Generated AI predictions successfully")
         return predictions
         
     except Exception as e:
-        logger.error(f\"Failed to generate predictions: {str(e)}\")
+        logger.error(f"Failed to generate predictions: {str(e)}")
         # Return fallback predictions
         return {
-            \"revenue\": avg_monthly_income * 1.05 if avg_monthly_income > 0 else 50000,
-            \"expenses\": avg_monthly_expense * 1.02 if avg_monthly_expense > 0 else 40000,
-            \"revenue_trend\": \"Based on 3-month average with 5% growth projection\",
-            \"expense_trend\": \"Expected 2% increase in operational costs\",
-            \"profit_trend\": \"Modest profit expected based on current trends\",
-            \"revenue_confidence\": 75,
-            \"expense_breakdown\": [
-                {\"category\": \"Salary\", \"amount\": avg_monthly_expense * 0.4},
-                {\"category\": \"Raw Materials\", \"amount\": avg_monthly_expense * 0.35},
-                {\"category\": \"Utilities\", \"amount\": avg_monthly_expense * 0.25}
+            "revenue": avg_monthly_income * 1.05 if avg_monthly_income > 0 else 50000,
+            "expenses": avg_monthly_expense * 1.02 if avg_monthly_expense > 0 else 40000,
+            "revenue_trend": "Based on 3-month average with 5% growth projection",
+            "expense_trend": "Expected 2% increase in operational costs",
+            "profit_trend": "Modest profit expected based on current trends",
+            "revenue_confidence": 75,
+            "expense_breakdown": [
+                {"category": "Salary", "amount": avg_monthly_expense * 0.4},
+                {"category": "Raw Materials", "amount": avg_monthly_expense * 0.35},
+                {"category": "Utilities", "amount": avg_monthly_expense * 0.25}
             ],
-            \"recommendations\": [
-                \"Monitor expenses closely for cost optimization\",
-                \"Focus on increasing revenue streams\",
-                \"Maintain adequate inventory levels\"
+            "recommendations": [
+                "Monitor expenses closely for cost optimization",
+                "Focus on increasing revenue streams",
+                "Maintain adequate inventory levels"
             ],
-            \"inventory_alerts\": []
+            "inventory_alerts": []
         }
 
 # Get Translations
