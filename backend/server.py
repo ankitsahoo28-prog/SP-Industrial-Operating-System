@@ -450,8 +450,16 @@ async def create_task(task_data: TaskCreate, current_user: dict = Depends(get_cu
                 assigner.get('name', 'Manager'),
                 deadline_str
             )
+        
+        # Send WebSocket notification
+        await notify_user(task.assigned_to, 'new_task', {
+            'task_id': task.id,
+            'title': task.title,
+            'assigned_by': assigner.get('name', 'Manager'),
+            'message': f'New task assigned: {task.title}'
+        })
     except Exception as e:
-        logger.error(f"Failed to send task notification email: {str(e)}")
+        logger.error(f"Failed to send task notification: {str(e)}")
     
     return task
 
