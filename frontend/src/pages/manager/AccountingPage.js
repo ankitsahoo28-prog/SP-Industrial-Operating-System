@@ -1,0 +1,356 @@
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { accountingApi } from '@/lib/api';
+import { toast } from 'sonner';
+import { Plus, DollarSign, TrendingUp, TrendingDown, Wallet, Building } from 'lucide-react';
+
+export default function AccountingPage() {
+  const [transactions, setTransactions] = useState([]);
+  const [summary, setSummary] = useState(null);
+  const [ledger, setLedger] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    transaction_type: 'expense',
+    payment_mode: 'cash',
+    amount: '',
+    description: '',
+    category: '',
+    date: new Date().toISOString().split('T')[0],
+  });
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      const [transRes, summaryRes, ledgerRes] = await Promise.all([
+        accountingApi.getTransactions(),
+        accountingApi.getSummary(),
+        accountingApi.getLedger(),
+      ]);
+      setTransactions(transRes.data);
+      setSummary(summaryRes.data);
+      setLedger(ledgerRes.data);
+    } catch (error) {
+      console.error('Failed to fetch accounting data:', error);
+      toast.error('Failed to load accounting data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await accountingApi.createTransaction({
+        ...formData,
+        amount: parseFloat(formData.amount),
+      });
+      toast.success('Transaction recorded successfully');
+      setDialogOpen(false);
+      setFormData({
+        transaction_type: 'expense',
+        payment_mode: 'cash',
+        amount: '',
+        description: '',
+        category: '',
+        date: new Date().toISOString().split('T')[0],
+      });
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to record transaction');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6" data-testid="accounting-page">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-heading font-bold text-primary">Accounting & Finance</h1>
+          <p className="text-muted-foreground mt-1">Manage cash, bank transactions and view ledger</p>
+        </div>
+
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="bg-accent hover:bg-accent/90" data-testid="add-transaction-button">
+              <Plus size={18} className="mr-2" />
+              New Transaction
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Record Transaction</DialogTitle>
+              <DialogDescription>Add expense or income entry</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Type</Label>
+                  <Select
+                    value={formData.transaction_type}
+                    onValueChange={(value) => setFormData({ ...formData, transaction_type: value })}
+                  >
+                    <SelectTrigger data-testid="transaction-type-select">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="expense">Expense</SelectItem>
+                      <SelectItem value="income">Income</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Payment Mode</Label>
+                  <Select
+                    value={formData.payment_mode}
+                    onValueChange={(value) => setFormData({ ...formData, payment_mode: value })}
+                  >
+                    <SelectTrigger data-testid="payment-mode-select">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cash">Cash</SelectItem>
+                      <SelectItem value="bank">Bank</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="amount">Amount</Label>
+                <Input
+                  id="amount"
+                  type="number"
+                  step="0.01"
+                  value={formData.amount}
+                  onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                  required
+                  data-testid="amount-input"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="category">Category</Label>
+                <Input
+                  id="category"
+                  value={formData.category}
+                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                  placeholder="e.g., Salary, Raw Materials, Sales"
+                  required
+                  data-testid="category-input"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  rows={2}
+                  required
+                  data-testid="description-input"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="date">Date</Label>
+                <Input
+                  id="date"
+                  type="date"
+                  value={formData.date}
+                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                  required
+                  data-testid="date-input"
+                />
+              </div>
+
+              <Button type="submit" className="w-full bg-accent hover:bg-accent/90" data-testid="submit-transaction-button">
+                Record Transaction
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Summary Cards */}
+      {summary && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <Card className="border-l-4 border-l-success">
+            <CardContent className="p-6">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground uppercase tracking-wider mb-1">Total Income</p>
+                  <p className="text-2xl font-heading font-bold text-success">₹{summary.total_income.toFixed(2)}</p>
+                </div>
+                <div className="p-3 bg-success/10 rounded-xl">
+                  <TrendingUp size={24} className="text-success" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-l-4 border-l-error">
+            <CardContent className="p-6">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground uppercase tracking-wider mb-1">Total Expense</p>
+                  <p className="text-2xl font-heading font-bold text-error">₹{summary.total_expense.toFixed(2)}</p>
+                </div>
+                <div className="p-3 bg-error/10 rounded-xl">
+                  <TrendingDown size={24} className="text-error" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-l-4 border-l-accent">
+            <CardContent className="p-6">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground uppercase tracking-wider mb-1">Cash Balance</p>
+                  <p className="text-2xl font-heading font-bold">₹{summary.cash_balance.toFixed(2)}</p>
+                </div>
+                <div className="p-3 bg-accent/10 rounded-xl">
+                  <Wallet size={24} className="text-accent" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-l-4 border-l-info">
+            <CardContent className="p-6">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground uppercase tracking-wider mb-1">Bank Balance</p>
+                  <p className="text-2xl font-heading font-bold">₹{summary.bank_balance.toFixed(2)}</p>
+                </div>
+                <div className="p-3 bg-info/10 rounded-xl">
+                  <Building size={24} className="text-info" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Tabs for Transactions and Ledger */}
+      <Tabs defaultValue="transactions" className="w-full">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="transactions">Transactions</TabsTrigger>
+          <TabsTrigger value="ledger">Ledger</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="transactions" className="space-y-4 mt-6">
+          {transactions.map((transaction) => (
+            <Card key={transaction.id} className="hover:shadow-md transition-shadow">
+              <CardContent className="p-6">
+                <div className="flex flex-col md:flex-row justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <DollarSign size={20} className={transaction.transaction_type === 'income' ? 'text-success' : 'text-error'} />
+                      <span className={`text-xs px-2 py-1 rounded border ${
+                        transaction.transaction_type === 'income'
+                          ? 'bg-success/20 text-success border-success/30'
+                          : 'bg-error/20 text-error border-error/30'
+                      }`}>
+                        {transaction.transaction_type}
+                      </span>
+                      <span className="text-xs px-2 py-1 rounded bg-secondary text-foreground">
+                        {transaction.payment_mode}
+                      </span>
+                    </div>
+
+                    <h3 className="font-semibold text-lg mb-1">{transaction.category}</h3>
+                    <p className="text-sm text-muted-foreground">{transaction.description}</p>
+                  </div>
+
+                  <div className="text-right">
+                    <p className={`text-2xl font-heading font-bold ${
+                      transaction.transaction_type === 'income' ? 'text-success' : 'text-error'
+                    }`}>
+                      {transaction.transaction_type === 'income' ? '+' : '-'}₹{transaction.amount.toFixed(2)}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {new Date(transaction.date).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+
+          {transactions.length === 0 && (
+            <Card>
+              <CardContent className="p-12 text-center">
+                <DollarSign size={48} className="mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">No transactions yet. Add your first transaction to get started.</p>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="ledger" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Ledger</CardTitle>
+              <CardDescription>Complete transaction history with running balance</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-secondary/50">
+                    <tr>
+                      <th className="p-3 text-left text-sm font-semibold">Date</th>
+                      <th className="p-3 text-left text-sm font-semibold">Description</th>
+                      <th className="p-3 text-left text-sm font-semibold">Category</th>
+                      <th className="p-3 text-right text-sm font-semibold">Debit</th>
+                      <th className="p-3 text-right text-sm font-semibold">Credit</th>
+                      <th className="p-3 text-right text-sm font-semibold">Balance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ledger.map((entry, index) => (
+                      <tr key={entry.id} className={index % 2 === 0 ? 'bg-background' : 'bg-secondary/20'}>
+                        <td className="p-3 text-sm">{new Date(entry.date).toLocaleDateString()}</td>
+                        <td className="p-3 text-sm">{entry.description}</td>
+                        <td className="p-3 text-sm">{entry.category}</td>
+                        <td className="p-3 text-sm text-right text-error">
+                          {entry.transaction_type === 'expense' ? `₹${entry.amount.toFixed(2)}` : '-'}
+                        </td>
+                        <td className="p-3 text-sm text-right text-success">
+                          {entry.transaction_type === 'income' ? `₹${entry.amount.toFixed(2)}` : '-'}
+                        </td>
+                        <td className="p-3 text-sm text-right font-semibold">
+                          ₹{entry.balance.toFixed(2)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
