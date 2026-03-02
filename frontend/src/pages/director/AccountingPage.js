@@ -8,8 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { accountingApi } from '@/lib/api';
 import { BusinessFilter } from '@/components/BusinessFilter';
+import AiAccountant from '@/components/AiAccountant';
 import { toast } from 'sonner';
 import { DollarSign, TrendingUp, TrendingDown, Download, FileText, Pencil } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function AccountingPage() {
   const [summary, setSummary] = useState(null);
@@ -186,6 +188,13 @@ export default function AccountingPage() {
         </div>
       )}
 
+      <Tabs defaultValue="ledger" className="w-full">
+        <TabsList className="grid w-full max-w-lg grid-cols-2">
+          <TabsTrigger value="ledger">Ledger</TabsTrigger>
+          <TabsTrigger value="ai-accountant" data-testid="ai-accountant-tab">AI Accountant</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="ledger" className="mt-6">
       <Card>
         <CardHeader>
           <CardTitle>Complete Ledger</CardTitle>
@@ -234,6 +243,12 @@ export default function AccountingPage() {
           </div>
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="ai-accountant" className="mt-6">
+          <AiAccountant onTransactionPosted={fetchData} />
+        </TabsContent>
+      </Tabs>
 
       {/* Edit Transaction Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>

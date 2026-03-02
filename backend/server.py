@@ -630,6 +630,156 @@ async def authorize_indent(
     
     return Indent(**updated_doc)
 
+
+# AI Accountant Routes
+class AiAccountantRequest(BaseModel):
+    statement: str
+
+class AiAccountantConfirmRequest(BaseModel):
+    entries: List[Dict[str, Any]]
+
+@api_router.post("/ai-accountant/analyze")
+async def ai_accountant_analyze(req: AiAccountantRequest, current_user: dict = Depends(get_current_user)):
+    if current_user['role'] == UserRole.GROUND_STAFF:
+        raise HTTPException(status_code=403, detail="Only managers and directors can use AI Accountant")
+    
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    
+    emergent_key = os.environ.get('EMERGENT_LLM_KEY')
+    
+    system_prompt = """You are an expert Indian Chartered Accountant and bookkeeping engine. 
+You convert natural language business transaction statements into complete accounting records following double-entry accounting principles.
+
+You MUST ALWAYS:
+1. Identify transaction type.
+2. Identify accounts affected.
+3. Determine Debit and Credit using accounting rules.
+4. Apply accrual accounting principles.
+5. Consider whether transaction is Cash or Credit.
+6. Apply GST/tax logic when applicable (Indian GST rates: 5%, 12%, 18%, 28%).
+7. Update inventory if goods are involved.
+8. Maintain accounting equation integrity: Assets = Liabilities + Equity.
+
+Follow Indian accounting practices. Keep entries balanced at all times. Use standard accounting heads unless user specifies custom ones. Currency is INR (₹).
+
+RESPOND IN THIS EXACT JSON FORMAT:
+{
+  "understanding": {
+    "transaction_type": "...",
+    "parties": "...",
+    "amount": 0,
+    "payment_mode": "cash|bank|credit",
+    "tax_applicable": true/false,
+    "tax_details": "..."
+  },
+  "journal_entries": [
+    {"account": "...", "type": "debit", "amount": 0},
+    {"account": "...", "type": "credit", "amount": 0}
+  ],
+  "ledger_impact": ["Account A - Debited ₹X", "Account B - Credited ₹X"],
+  "financial_impact": {
+    "pnl_effect": "...",
+    "balance_sheet_effect": "..."
+  },
+  "assumptions": ["..."],
+  "transactions_to_create": [
+    {
+      "transaction_type": "expense|income",
+      "payment_mode": "cash|bank",
+      "amount": 0,
+      "description": "...",
+      "category": "..."
+    }
+  ],
+
+CRITICAL: transactions_to_create must NEVER be empty when needs_clarification is false. Always include at least one entry representing the main financial flow. For salary payments, purchases, etc. use "expense". For sales, receipts use "income". If GST is involved, create separate entries for the base amount and tax (CGST+SGST or IGST) if applicable.
+  "needs_clarification": false,
+  "clarification_question": ""
+}
+
+If information is missing and you cannot make reasonable assumptions, set needs_clarification=true and provide a clarification_question. Never guess silently."""
+
+    try:
+        chat = LlmChat(
+            api_key=emergent_key,
+            session_id=f"ai-accountant-{current_user['user_id']}",
+            system_message=system_prompt
+        ).with_model("openai", "gpt-4o-mini")
+        
+        user_message = UserMessage(text=f"Parse this business transaction: {req.statement}")
+        response = await chat.send_message(user_message)
+        
+        # Try to parse JSON from response
+        import json as json_lib
+        import re
+        
+        # Extract JSON from response (handle markdown code blocks)
+        json_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', response)
+        if json_match:
+            json_str = json_match.group(1).strip()
+        else:
+            json_str = response.strip()
+        
+        parsed = json_lib.loads(json_str)
+        return parsed
+        
+    except json_lib.JSONDecodeError:
+        # If JSON parsing fails, return the raw text as a fallback
+        return {
+            "understanding": {"transaction_type": "Unknown", "parties": "Unknown", "amount": 0, "payment_mode": "cash", "tax_applicable": False, "tax_details": ""},
+            "journal_entries": [],
+            "ledger_impact": [],
+            "financial_impact": {"pnl_effect": "Unable to determine", "balance_sheet_effect": "Unable to determine"},
+            "assumptions": [],
+            "transactions_to_create": [],
+            "needs_clarification": True,
+            "clarification_question": f"I couldn't parse the transaction. Raw analysis: {response[:500]}",
+        }
+    except Exception as e:
+        logger.error(f"AI Accountant error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"AI analysis failed: {str(e)}")
+
+@api_router.post("/ai-accountant/confirm")
+async def ai_accountant_confirm(req: AiAccountantConfirmRequest, current_user: dict = Depends(get_current_user)):
+    if current_user['role'] == UserRole.GROUND_STAFF:
+        raise HTTPException(status_code=403, detail="Only managers and directors can post transactions")
+    
+    created = []
+    for entry in req.entries:
+        t_type = entry.get('transaction_type', 'expense')
+        p_mode = entry.get('payment_mode', 'cash')
+        
+        transaction_dict = {
+            'id': str(uuid.uuid4()),
+            'transaction_type': t_type,
+            'payment_mode': p_mode,
+            'amount': float(entry.get('amount', 0)),
+            'description': entry.get('description', ''),
+            'category': entry.get('category', 'Other'),
+            'created_by': current_user['user_id'],
+            'business_type': current_user.get('business_type'),
+            'date': datetime.now(timezone.utc).isoformat(),
+            'created_at': datetime.now(timezone.utc).isoformat(),
+        }
+        
+        await db.transactions.insert_one(transaction_dict)
+        created.append(transaction_dict)
+    
+    # Audit log
+    await db.audit_logs.insert_one({
+        'id': str(uuid.uuid4()),
+        'user_id': current_user['user_id'],
+        'action': 'create',
+        'entity_type': 'transaction',
+        'entity_id': 'ai-batch',
+        'old_data': None,
+        'new_data': {'count': len(created), 'source': 'AI Accountant'},
+        'timestamp': datetime.now(timezone.utc).isoformat(),
+    })
+    
+    return {"message": f"{len(created)} transaction(s) posted successfully", "transactions": created}
+
+
 # Accounting Routes
 @api_router.post("/transactions", response_model=Transaction)
 async def create_transaction(transaction_data: TransactionCreate, current_user: dict = Depends(get_current_user)):

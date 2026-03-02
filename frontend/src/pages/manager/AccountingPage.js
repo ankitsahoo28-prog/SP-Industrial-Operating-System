@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { accountingApi } from '@/lib/api';
+import AiAccountant from '@/components/AiAccountant';
 import { toast } from 'sonner';
 import { Plus, DollarSign, TrendingUp, TrendingDown, Wallet, Building, Pencil, Download, FileText } from 'lucide-react';
 
@@ -287,9 +288,10 @@ export default function AccountingPage() {
 
       {/* Tabs */}
       <Tabs defaultValue="transactions" className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
+        <TabsList className="grid w-full max-w-lg grid-cols-3">
           <TabsTrigger value="transactions">Transactions</TabsTrigger>
           <TabsTrigger value="ledger">Ledger</TabsTrigger>
+          <TabsTrigger value="ai-accountant" data-testid="ai-accountant-tab">AI Accountant</TabsTrigger>
         </TabsList>
 
         <TabsContent value="transactions" className="space-y-4 mt-6">
@@ -378,6 +380,10 @@ export default function AccountingPage() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="ai-accountant" className="mt-6">
+          <AiAccountant onTransactionPosted={fetchData} />
         </TabsContent>
       </Tabs>
 
