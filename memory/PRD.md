@@ -50,6 +50,10 @@ Build a comprehensive business operations web application named "SP" for managin
 - [x] Removed SP heading from sidebar
 
 - [x] AI Chartered Accountant (natural language → journal entries with auto-post, Director + Manager)
+- [x] Double-Entry Bookkeeping Engine (Chart of Accounts, Journal Entries, Ledger Balances)
+- [x] Financial Reports (Trial Balance, Profit & Loss, Balance Sheet - auto-updating)
+- [x] Auto-create party accounts (customer/vendor) on first mention
+- [x] Accounting UI with 4 tabs: Home, Journals, Ledgers, Reports (Director + Manager)
 - [x] Login page: background video + SP GROUP logo (replaced SP Industrial OS text)
 
 ## In Progress
