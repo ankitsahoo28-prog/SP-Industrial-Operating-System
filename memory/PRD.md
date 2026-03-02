@@ -1,91 +1,98 @@
-# SP Industrial Operating System - Product Requirements
+# SP Industrial Operations - Product Requirements Document
 
-## Problem Statement
-Build a comprehensive, multi-business, multi-company ERP application named "SP" with role-based access, AI accounting, inventory management, and full data isolation per company.
+## Original Problem Statement
+Build a multi-business ERP application "SP" for managing multiple companies (Petrol Pump, Hotel, FL Shop, Transport, Slag Crushing, Stone Crusher). Features include role-based access control (Director, Manager, Ground Staff), double-entry bookkeeping, inventory management, task management, real-time tracking, AI-powered tools, and cross-company reporting.
 
-## Architecture
-- **Frontend:** React + Tailwind CSS + Shadcn/UI + Recharts, port 3000
-- **Backend:** FastAPI + Python, port 8001
-- **Database:** MongoDB via motor (async)
-- **Auth:** JWT tokens
-- **AI:** OpenAI GPT-4o-mini via emergentintegrations (Emergent LLM Key)
+## User Personas
+- **Director**: Full access, cross-company views, user management, financial oversight
+- **Manager**: Company-scoped access, team management, day-to-day operations
+- **Ground Staff**: Task execution, basic reporting
 
-## Core Modules
+## Core Architecture
+- **Frontend**: React + Tailwind CSS + Shadcn/UI, served on port 3000
+- **Backend**: FastAPI + Python, served on port 8001
+- **Database**: MongoDB via motor (async driver)
+- **Auth**: JWT-based, role-based access control
+- **Multi-Company**: CompanyContext on frontend, company_id filtering + resolve_company_id on backend
 
-### 1. Multi-Company Management (DONE - Feb 2026)
-- **Company CRUD**: Create, edit, soft-delete, restore, activate/deactivate
-- **Auto-seeding**: New company auto-generates Chart of Accounts + default settings
-- **User Assignment**: Director assigns managers/staff to companies
-- **Company Selector**: Dropdown in header, persists in localStorage
-- **Data Isolation**: Every query filters by company_id
-- **Executive Dashboard**: Monthly/quarterly/yearly views with bar/pie charts, KPI cards
-- **Consolidated vs Single**: Director can view all companies or drill into one
+## What's Been Implemented (Complete)
 
-### 2. Role-Based Access Control (DONE)
-- **Director**: Full access, create/delete companies, consolidated views, final authority
-- **Manager/Accountant**: Select assigned companies only, accounting entries, inventory, tasks
-- **Ground Staff**: View own tasks and reports only
-- Self-registration with Director approval, forgot/reset password
+### Foundation
+- [x] JWT Authentication with role-based access (Director/Manager/Ground Staff)
+- [x] Self-registration with director approval workflow
+- [x] Forgot password flow
+- [x] Multi-company architecture (CompanyContext + company_users mapping)
+- [x] Company CRUD management for directors
+- [x] Internationalization (i18n) - English, Hindi, Odia
 
-### 3. Double-Entry Bookkeeping (DONE)
-- Company-scoped Chart of Accounts, Journal Entries, Ledger Balances
-- Auto financial reports: Trial Balance, P&L, Balance Sheet
-- AI Accountant for natural language transaction input
-- All entries tied to company_id
+### Accounting & Finance
+- [x] Full double-entry bookkeeping (journal entries, accounts, ledger balances)
+- [x] Trial Balance, Profit & Loss, Balance Sheet reports
+- [x] Company-scoped data isolation (resolve_company_id for all endpoints)
+- [x] AI Accountant (OpenAI GPT-4o via Emergent LLM key)
+- [x] Transaction management with PDF/CSV exports
 
-### 4. Comprehensive Inventory Management (DONE)
-- 55+ seeded items across 6 business types (including hotel F&B)
-- Stock movements, production batches, inter-business transfers
-- LiDAR stock scanning with dimension-based volume estimation
-- AI Inventory Assistant (natural language to stock movements)
-- Low stock alerts, auto accounting integration
+### Inventory
+- [x] Comprehensive inventory system with categories per business type
+- [x] Stock movements (in/out/wastage) with auto-journal entries
+- [x] LiDAR volume scanner with camera integration
+- [x] Low stock alerts, stock register, movement history
 
-### 5. Director App Settings (DONE)
-- Customize app name, logo, background video, primary color, tagline
-- Login page dynamically reads settings
+### Director Features (NEW - March 2026)
+- [x] **Daily Summary**: Real-time daily activity overview across all companies
+- [x] **Executive Report**: Cross-company performance dashboard with period filters
+- [x] **Director Creation**: Directors can create other directors
+- [x] **Director Edit-All**: Universal edit permissions (update/delete any entity)
+- [x] **Role Management**: Custom job roles with granular permissions
+- [x] **Inter-Company Reconciliation**: Track, match, dispute transactions between companies
 
-### 6. Internationalization - i18n (DONE)
-- English, Hindi, Odia language support
-- Language switcher in sidebar
+### Bug Fixes (March 2026)
+- [x] **Manager Permissions**: Auto-assign managers to companies on creation + resolve_company_id for non-directors
+- [x] **Data Isolation**: All accounting/inventory/task endpoints now properly filter by company_id
+- [x] **Director Dashboard**: Executive report now aggregates data from all companies correctly
 
-### 7. Real AI Predictive Analytics (DONE)
-- Genuine LLM analysis of actual financial + inventory data
-
-### 8. Tasks, Indents, Reports, Exports (DONE)
-- All company-scoped with company_id filtering
+### Other Features
+- [x] Task management with email notifications (SendGrid)
+- [x] Real-time updates via Socket.IO
+- [x] Audit logging
+- [x] App customization (logo, name, background)
+- [x] Indent management
 
 ## Key API Endpoints
+| Endpoint | Method | Description |
+|---|---|---|
+| /api/auth/login | POST | JWT login |
+| /api/director/daily-summary | GET | Daily activity summary |
+| /api/director/executive-report | GET | Cross-company performance |
+| /api/job-roles | GET/POST | Role management CRUD |
+| /api/job-roles/{id} | PUT/DELETE | Update/delete role |
+| /api/reconciliation | GET/POST | Reconciliation CRUD |
+| /api/reconciliation/{id} | PATCH/DELETE | Status update/delete |
+| /api/director/journal-entries/{id} | PUT/DELETE | Director edit-all |
+| /api/journal-entries | GET/POST | Accounting entries |
+| /api/inv/items | GET/POST | Inventory items |
+| /api/inv/stock-movement | POST | Record stock movement |
+| /api/tasks | GET/POST | Task management |
+| /api/users | GET/POST | User management |
 
-### Company Management
-- `GET/POST /api/companies` - List/Create companies
-- `PUT/DELETE /api/companies/{id}` - Update/Delete
-- `POST /api/companies/{id}/restore|activate|deactivate`
-- `POST /api/companies/assign-user|remove-user`
-- `GET /api/companies/{id}/users`
-- `GET /api/companies/my-companies` - Role-scoped
-- `GET /api/director/executive-report?period=monthly|quarterly|yearly&company_id=X`
+## Key Technical Decisions
+- `resolve_company_id()`: Auto-resolves company_id for non-director users from company_users collection
+- Directors see all data when no company_id filter; managers/staff only see their assigned company
+- All new managers are auto-assigned to matching company by business_type on creation
 
-### Accounting (all accept ?company_id=X)
-- `/api/journal-entries`, `/api/accounts`, `/api/ledger-balances`
-- `/api/reports/trial-balance|profit-loss|balance-sheet`
+## Prioritized Backlog
 
-### Inventory (all accept ?company_id=X)
-- `/api/inv/*` - 14 endpoints
-
-## DB Collections
-- companies, company_users
-- users, tasks, transactions, audit_logs
-- accounts, journal_entries, ledger_balances
-- inventory_items, stock_movements, production_batches, inventory_transfers, lidar_scans
-- app_settings
-
-## Credentials
-- Director: director@sp.com / password123
-- Manager: manager@sp.com / password123
-- Staff: staff@sp.com / password123
-
-## Pending / Backlog
+### P2 - Future
+- Native Android/iOS app
+- True AI predictive analytics (currently simplified)
+- Full PWA offline synchronization
 - Geolocation tracking for ground staff
-- Native mobile app
-- Email-based password reset
-- Full PWA offline sync
+- Multi-language expansion
+
+## 3rd Party Integrations
+- **OpenAI GPT-4o**: AI Accountant (via Emergent LLM key + emergentintegrations)
+- **SendGrid**: Email notifications (user API key required)
+
+## Test Credentials
+- **Director**: director@sp.com / password123
+- **Manager**: manager@sp.com / password123
