@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { BusinessFilter } from '@/components/BusinessFilter';
@@ -127,7 +127,7 @@ export default function DirectorInventoryPage() {
               </Button>
             </DialogTrigger>
             <DialogContent>
-              <DialogHeader><DialogTitle>Inter-Business Transfer</DialogTitle></DialogHeader>
+              <DialogHeader><DialogTitle>Inter-Business Transfer</DialogTitle><DialogDescription>Move inventory between business units</DialogDescription></DialogHeader>
               <form onSubmit={handleTransfer} className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">

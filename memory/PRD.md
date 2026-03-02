@@ -1,75 +1,91 @@
-# SP Industrial Operating System - PRD
+# SP Industrial Operating System - Product Requirements
 
 ## Problem Statement
-Build a comprehensive business operations web application named "SP" for managing six business types: petrol pump, hotel, FL shop, transport, slag crushing unit, and stone crusher. Three user roles: Director, Manager, Ground Staff with role-based access.
-
-## Tech Stack
-- **Frontend:** React, Tailwind CSS, Shadcn/UI, Recharts
-- **Backend:** FastAPI, Python, MongoDB (motor)
-- **Auth:** JWT
-- **Real-time:** Socket.IO (WebSockets)
-- **Exports:** ReportLab (PDF), CSV
-- **AI:** OpenAI (Emergent LLM key, currently fallback/mock)
+Build a comprehensive, multi-business ERP-like application named "SP" for six business types: petrol pump, hotel, FL shop, transport, slag crushing, and stone crusher. Role-based access (Director, Manager, Ground Staff), task management, geolocation, reporting, accounting, AI assistance, and inventory management.
 
 ## Architecture
-```
-/app/backend/server.py       - Monolithic FastAPI (all routes, models)
-/app/backend/ai_service.py   - AI insights (OpenAI, fallback mock)
-/app/backend/export_service.py - PDF/CSV generation
-/app/backend/websocket_service.py - Socket.IO real-time
-/app/frontend/src/App.js     - Routes & auth
-/app/frontend/src/context/AuthContext.js - Auth state, WS init
-/app/frontend/src/lib/api.js - API helpers
-/app/frontend/src/components/Layout.js - Sidebar nav
-```
+- **Frontend:** React + Tailwind CSS + Shadcn/UI, served on port 3000
+- **Backend:** FastAPI + Python, served on port 8001
+- **Database:** MongoDB via motor (async)
+- **Auth:** JWT tokens
+- **AI:** OpenAI GPT-4o-mini via emergentintegrations (Emergent LLM Key)
+
+## Core Modules
+
+### 1. Authentication & Roles (DONE)
+- JWT login/register
+- 3 roles: Director, Manager, Ground Staff
+- Role-based routing and access control
+
+### 2. User Management (DONE)
+- Director creates Managers, Manager creates Ground Staff
+- Edit/Delete users with audit trail
+
+### 3. Task Management (DONE)
+- Create, assign, track tasks
+- Email/WebSocket notifications
+
+### 4. Double-Entry Bookkeeping (DONE)
+- Chart of Accounts, Journal Entries, Ledger Balances
+- Auto financial reports: Trial Balance, P&L, Balance Sheet
+- AI Accountant for natural language transaction input
+
+### 5. Comprehensive Inventory Management (DONE - Feb 2026)
+- **47+ seeded items** across 5 business types with industry-specific categories
+- **Stock Register:** Real-time stock levels with search & category filters
+- **Stock Movements:** Purchase, Sale, Wastage, Consumption, Returns with full tracking
+- **Production Batches:** Raw material → Finished goods with yield/loss tracking
+- **Inter-Business Transfers:** Director-only transfer between business units
+- **LiDAR Stock Scanning:** Volume-to-weight conversion with variance analysis
+- **Low Stock Alerts:** Auto-detection of items below minimum levels
+- **Auto Accounting Integration:** Purchases auto-create Inventory Dr / Payable Cr journal entries; Sales auto-create Receivable Dr / Sales Cr entries
+- **Industry Categories:** slag_crushing, stone_crusher, fl_shop, transport, petrol_pump with specific items
+
+### 6. Reports & Exports (DONE)
+- PDF/CSV export for transactions, ledger, inventory
+- Business-specific filtering for Director
+
+### 7. Indents (DONE)
+- Manager creates, Director approves
+
+## Key API Endpoints
+
+### Inventory (/api/inv/*)
+- `GET /api/inv/dashboard` - Consolidated dashboard
+- `GET /api/inv/items` - Stock register (filterable)
+- `POST /api/inv/items` - Create item
+- `POST /api/inv/stock-movement` - Record movement
+- `GET /api/inv/movements` - Movement history
+- `POST /api/inv/production` - Record production
+- `GET /api/inv/productions` - Production history
+- `POST /api/inv/transfer` - Inter-business transfer (Director only)
+- `GET /api/inv/transfers` - Transfer history
+- `POST /api/inv/lidar-scan` - LiDAR scan
+- `GET /api/inv/lidar-scans` - Scan history
+- `GET /api/inv/low-stock` - Low stock alerts
+- `GET /api/inv/categories` - Industry categories
+
+## DB Collections
+- users, tasks, transactions, audit_logs
+- accounts, journal_entries, ledger_balances
+- inventory_items, stock_movements, production_batches, inventory_transfers, lidar_scans
+
+## Pending / Backlog
+
+### P1 - Upcoming
+- Language Internationalization (i18n) - English, Hindi, Odia
+- LiDAR mobile app integration (native device scanning)
+- AI inventory assistant (natural language inventory inputs)
+
+### P2 - Future
+- Geolocation tracking for ground staff
+- Native Android/iOS mobile app
+- Real AI predictive analytics (replace mocked predictions)
+- Full PWA offline synchronization
+- Hotel inventory module (F&B specific)
 
 ## Credentials
 - Director: director@sp.com / password123
-- Manager: manager@sp.com / password123
-- Ground Staff: staff@sp.com / password123
-
-## Completed Features
-- [x] User auth with JWT (login/register)
-- [x] Role-based dashboards (Director, Manager, Ground Staff)
-- [x] Task management (create, assign, update status)
-- [x] Report submission (multiple types)
-- [x] Indent system (create, approve/reject)
-- [x] Accounting (transactions, ledger, summary) - INR currency
-- [x] Inventory management
-- [x] AI insights & predictions (mocked/fallback)
-- [x] WebSocket real-time notifications
-- [x] PDF/CSV export buttons on accounting pages
-- [x] Edit transaction UI (Manager & Director) with audit logging
-- [x] Delete user UI (Director) with confirmation dialog
-- [x] Audit Trail page (Director) with entity filter
-- [x] PWA service worker scaffold
-- [x] Logo integration on login page
-- [x] Historical trend data endpoint
-
-- [x] Business type filters on Director pages (Tasks, Reports, Indents, Accounting)
-- [x] Removed SP heading from sidebar
-
-- [x] AI Chartered Accountant (natural language → journal entries with auto-post, Director + Manager)
-- [x] Double-Entry Bookkeeping Engine (Chart of Accounts, Journal Entries, Ledger Balances)
-- [x] Financial Reports (Trial Balance, Profit & Loss, Balance Sheet - auto-updating)
-- [x] Auto-create party accounts (customer/vendor) on first mention
-- [x] Accounting UI with 4 tabs: Home, Journals, Ledgers, Reports (Director + Manager)
-- [x] Login page: background video + SP GROUP logo (replaced SP Industrial OS text)
-
-## In Progress
-(none)
-
-## Upcoming Tasks (P0-P1)
-1. **Business-Specific Customization (P0)** - Filter Manager/Ground Staff data by assigned business
-2. **Language Internationalization i18n (P1)** - English, Hindi, Odia support
-3. **Backend Refactoring (P1)** - Break server.py into modular routers
-
-## Future/Backlog (P2+)
-1. Real AI Predictive Analytics (replace mock with OpenAI)
-2. Geolocation Tracking (GPS for ground staff attendance)
-3. Full PWA Offline Sync (IndexedDB + sync)
-4. Native Android App (clarify: PWA wrapper vs React Native)
-
-## Known Issues
-- AI insights/predictions return fallback mock data (OpenAI integration not active)
-- Console hydration warning in Director Accounting (cosmetic, non-breaking)
+- Manager (PP): manager.pp@sp.com / password123
+- Manager (Hotel): manager.hotel@sp.com / password123
+- Staff (PP): staff.pp@sp.com / password123

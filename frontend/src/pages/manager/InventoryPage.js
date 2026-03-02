@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { invApi } from '@/lib/api';
@@ -155,7 +155,7 @@ export default function InventoryPage() {
               <Button data-testid="record-movement-btn"><ShoppingCart size={16} className="mr-2" />Record Movement</Button>
             </DialogTrigger>
             <DialogContent className="max-w-md">
-              <DialogHeader><DialogTitle>Record Stock Movement</DialogTitle></DialogHeader>
+              <DialogHeader><DialogTitle>Record Stock Movement</DialogTitle><DialogDescription>Record a purchase, sale, or other stock movement</DialogDescription></DialogHeader>
               <form onSubmit={handleMovement} className="space-y-3">
                 <div className="space-y-1">
                   <Label>Item</Label>
@@ -217,7 +217,7 @@ export default function InventoryPage() {
               <Button variant="outline" data-testid="record-production-btn"><Layers size={16} className="mr-2" />Production</Button>
             </DialogTrigger>
             <DialogContent className="max-w-lg">
-              <DialogHeader><DialogTitle>Record Production Batch</DialogTitle></DialogHeader>
+              <DialogHeader><DialogTitle>Record Production Batch</DialogTitle><DialogDescription>Convert raw materials into finished goods</DialogDescription></DialogHeader>
               <form onSubmit={handleProduction} className="space-y-3">
                 <div className="space-y-1">
                   <Label>Input Raw Material</Label>
@@ -259,7 +259,7 @@ export default function InventoryPage() {
               <Button variant="secondary" data-testid="add-item-btn"><Plus size={16} className="mr-2" />Add Item</Button>
             </DialogTrigger>
             <DialogContent className="max-w-md">
-              <DialogHeader><DialogTitle>Add Inventory Item</DialogTitle></DialogHeader>
+              <DialogHeader><DialogTitle>Add Inventory Item</DialogTitle><DialogDescription>Add a new item to your inventory</DialogDescription></DialogHeader>
               <form onSubmit={handleAddItem} className="space-y-3">
                 <div className="space-y-1"><Label>Name</Label><Input value={addForm.name} onChange={e => setAddForm(f => ({ ...f, name: e.target.value }))} required data-testid="add-name" /></div>
                 <div className="grid grid-cols-2 gap-3">
