@@ -13,50 +13,55 @@ import {
   Menu,
   X,
   History,
-  Warehouse
+  Warehouse,
+  Settings,
+  Globe
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useI18n } from '@/context/I18nContext';
 
 export const Layout = ({ children, role }) => {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { lang, setLang, t } = useI18n();
 
   const getNavItems = () => {
     const base = [
-      { icon: LayoutDashboard, label: 'Dashboard', path: '' },
+      { icon: LayoutDashboard, label: t('dashboard'), path: '' },
     ];
 
     if (role === 'director') {
       return [
         ...base,
-        { icon: Users, label: 'Users', path: '/users' },
-        { icon: ClipboardList, label: 'Tasks', path: '/tasks' },
-        { icon: MapPin, label: 'Tracking', path: '/tracking' },
-        { icon: FileText, label: 'Reports', path: '/reports' },
-        { icon: Package, label: 'Indents', path: '/indents' },
-        { icon: DollarSign, label: 'Accounting', path: '/accounting' },
-        { icon: Warehouse, label: 'Inventory', path: '/inventory' },
-        { icon: History, label: 'Audit Trail', path: '/audit-log' },
+        { icon: Users, label: t('users'), path: '/users' },
+        { icon: ClipboardList, label: t('tasks'), path: '/tasks' },
+        { icon: MapPin, label: t('tracking'), path: '/tracking' },
+        { icon: FileText, label: t('reports'), path: '/reports' },
+        { icon: Package, label: t('indents'), path: '/indents' },
+        { icon: DollarSign, label: t('accounting'), path: '/accounting' },
+        { icon: Warehouse, label: t('inventory'), path: '/inventory' },
+        { icon: History, label: t('audit_trail'), path: '/audit-log' },
+        { icon: Settings, label: t('settings'), path: '/settings' },
       ];
     } else if (role === 'manager') {
       return [
         ...base,
-        { icon: Users, label: 'My Team', path: '/team' },
-        { icon: ClipboardList, label: 'Tasks', path: '/tasks' },
-        { icon: MapPin, label: 'Tracking', path: '/tracking' },
-        { icon: FileText, label: 'Reports', path: '/reports' },
-        { icon: Package, label: 'Indents', path: '/indents' },
-        { icon: DollarSign, label: 'Accounting', path: '/accounting' },
-        { icon: Warehouse, label: 'Inventory', path: '/inventory' },
+        { icon: Users, label: t('my_team'), path: '/team' },
+        { icon: ClipboardList, label: t('tasks'), path: '/tasks' },
+        { icon: MapPin, label: t('tracking'), path: '/tracking' },
+        { icon: FileText, label: t('reports'), path: '/reports' },
+        { icon: Package, label: t('indents'), path: '/indents' },
+        { icon: DollarSign, label: t('accounting'), path: '/accounting' },
+        { icon: Warehouse, label: t('inventory'), path: '/inventory' },
       ];
     } else {
       return [
         ...base,
-        { icon: ClipboardList, label: 'My Tasks', path: '/tasks' },
-        { icon: FileText, label: 'Reports', path: '/reports' },
+        { icon: ClipboardList, label: t('my_tasks'), path: '/tasks' },
+        { icon: FileText, label: t('reports'), path: '/reports' },
       ];
     }
   };
@@ -111,6 +116,15 @@ export const Layout = ({ children, role }) => {
             <p className="text-xs text-muted-foreground">{user?.email}</p>
             <p className="text-xs text-accent mt-1 uppercase font-semibold">{user?.role?.replace('_', ' ')}</p>
           </div>
+          <div className="flex items-center gap-1 mb-3 px-1">
+            <Globe size={14} className="text-muted-foreground" />
+            {['en', 'hi', 'od'].map(l => (
+              <button key={l} onClick={() => setLang(l)}
+                className={cn('px-2 py-1 rounded text-xs font-medium transition-colors', lang === l ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-secondary')}
+                data-testid={`lang-${l}`}
+              >{l === 'en' ? 'EN' : l === 'hi' ? 'HI' : 'OD'}</button>
+            ))}
+          </div>
           <Button
             onClick={handleLogout}
             variant="outline"
@@ -118,7 +132,7 @@ export const Layout = ({ children, role }) => {
             data-testid="logout-button"
           >
             <LogOut size={16} className="mr-2" />
-            Logout
+            {t('logout')}
           </Button>
         </div>
       </aside>

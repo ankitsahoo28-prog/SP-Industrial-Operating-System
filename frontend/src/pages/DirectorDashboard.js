@@ -14,6 +14,7 @@ import IndentsPage from './director/IndentsPage';
 import AccountingPage from './director/AccountingPage';
 import AuditLogPage from './director/AuditLogPage';
 import InventoryPage from './director/InventoryPage';
+import SettingsPage from './director/SettingsPage';
 
 const StatCard = ({ icon: Icon, title, value, description, color }) => (
   <Card className="hover:shadow-md transition-shadow">
@@ -417,6 +418,7 @@ export default function DirectorDashboard() {
         <Route path="accounting" element={<AccountingPage />} />
         <Route path="inventory" element={<InventoryPage />} />
         <Route path="audit-log" element={<AuditLogPage />} />
+        <Route path="settings" element={<SettingsPage />} />
       </Routes>
     </Layout>
   );

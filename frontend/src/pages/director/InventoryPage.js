@@ -9,6 +9,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { BusinessFilter } from '@/components/BusinessFilter';
+import AiInventoryAssistant from '@/components/AiInventoryAssistant';
+import LidarScanner from '@/components/LidarScanner';
 import { invApi } from '@/lib/api';
 import { toast } from 'sonner';
 import {
@@ -173,6 +175,7 @@ export default function DirectorInventoryPage() {
           <TabsTrigger value="transfers" data-testid="tab-transfers"><ArrowRightLeft size={14} className="mr-1" />Transfers</TabsTrigger>
           <TabsTrigger value="alerts" data-testid="tab-alerts"><AlertTriangle size={14} className="mr-1" />Alerts ({lowStock.length})</TabsTrigger>
           <TabsTrigger value="lidar" data-testid="tab-lidar"><ScanLine size={14} className="mr-1" />LiDAR</TabsTrigger>
+          <TabsTrigger value="ai" data-testid="tab-ai"><Package size={14} className="mr-1" />AI Assistant</TabsTrigger>
         </TabsList>
 
         {/* Dashboard Tab */}
@@ -394,9 +397,10 @@ export default function DirectorInventoryPage() {
         </TabsContent>
 
         {/* LiDAR Tab */}
-        <TabsContent value="lidar">
+        <TabsContent value="lidar" className="space-y-4">
+          <LidarScanner items={items} onComplete={fetchAll} />
           <Card>
-            <CardHeader><CardTitle>LiDAR Stock Verification Scans</CardTitle><CardDescription>Comparison between physical scans and system records</CardDescription></CardHeader>
+            <CardHeader><CardTitle>Scan History</CardTitle><CardDescription>Previous volume measurements and variance analysis</CardDescription></CardHeader>
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
@@ -426,11 +430,16 @@ export default function DirectorInventoryPage() {
                       <TableCell className="text-sm">{s.notes || '-'}</TableCell>
                     </TableRow>
                   ))}
-                  {lidarScans.length === 0 && <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No LiDAR scans recorded</TableCell></TableRow>}
+                  {lidarScans.length === 0 && <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No scans recorded</TableCell></TableRow>}
                 </TableBody>
               </Table>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* AI Assistant Tab */}
+        <TabsContent value="ai">
+          <AiInventoryAssistant businessType={bizFilter !== 'all' ? bizFilter : undefined} onComplete={fetchAll} />
         </TabsContent>
       </Tabs>
     </div>

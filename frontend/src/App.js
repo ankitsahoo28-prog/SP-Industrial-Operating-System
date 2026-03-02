@@ -5,6 +5,7 @@ import DirectorDashboard from '@/pages/DirectorDashboard';
 import ManagerDashboard from '@/pages/ManagerDashboard';
 import GroundStaffDashboard from '@/pages/GroundStaffDashboard';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
+import { I18nProvider } from '@/context/I18nContext';
 import '@/index.css';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -48,6 +49,7 @@ const DashboardRouter = () => {
 
 function App() {
   return (
+    <I18nProvider>
     <AuthProvider>
       <BrowserRouter>
         <Routes>
@@ -81,6 +83,7 @@ function App() {
         <Toaster position="top-right" />
       </BrowserRouter>
     </AuthProvider>
+    </I18nProvider>
   );
 }
 

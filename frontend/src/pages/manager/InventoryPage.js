@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import AiInventoryAssistant from '@/components/AiInventoryAssistant';
 import { invApi } from '@/lib/api';
 import { toast } from 'sonner';
 import {
@@ -303,6 +304,7 @@ export default function InventoryPage() {
           <TabsTrigger value="movements" data-testid="tab-movements"><TrendingUp size={14} className="mr-1" />Movements</TabsTrigger>
           <TabsTrigger value="production" data-testid="tab-production"><Layers size={14} className="mr-1" />Production</TabsTrigger>
           <TabsTrigger value="alerts" data-testid="tab-alerts"><AlertTriangle size={14} className="mr-1" />Alerts ({lowStock.length})</TabsTrigger>
+          <TabsTrigger value="ai" data-testid="tab-ai"><Package size={14} className="mr-1" />AI Assistant</TabsTrigger>
         </TabsList>
 
         {/* Stock Register */}
@@ -456,6 +458,11 @@ export default function InventoryPage() {
               ))}
             </div>
           )}
+        </TabsContent>
+
+        {/* AI Assistant Tab */}
+        <TabsContent value="ai">
+          <AiInventoryAssistant onComplete={fetchItems} />
         </TabsContent>
       </Tabs>
     </div>

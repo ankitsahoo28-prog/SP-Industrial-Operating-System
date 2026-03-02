@@ -5,12 +5,14 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { userApi, deleteUser } from '@/lib/api';
+import { userApi, deleteUser, authApi } from '@/lib/api';
 import { toast } from 'sonner';
-import { UserPlus, Mail, Phone, Briefcase, Shield, Trash2 } from 'lucide-react';
+import { UserPlus, Mail, Phone, Briefcase, Shield, Trash2, CheckCircle2, XCircle, Clock } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 export default function UsersPage() {
   const [users, setUsers] = useState([]);
+  const [pendingUsers, setPendingUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -26,7 +28,26 @@ export default function UsersPage() {
 
   useEffect(() => {
     fetchUsers();
+    fetchPendingUsers();
   }, []);
+
+  const fetchPendingUsers = async () => {
+    try {
+      const response = await authApi.getPendingUsers();
+      setPendingUsers(response.data);
+    } catch { /* ignore if no pending users */ }
+  };
+
+  const handleApprove = async (userId, action) => {
+    try {
+      await authApi.approveUser(userId, action);
+      toast.success(`User ${action}`);
+      fetchPendingUsers();
+      fetchUsers();
+    } catch (err) {
+      toast.error('Action failed');
+    }
+  };
 
   const fetchUsers = async () => {
     try {
@@ -92,6 +113,32 @@ export default function UsersPage() {
 
   return (
     <div className="space-y-6" data-testid="users-page">
+      {/* Pending Users Approval */}
+      {pendingUsers.length > 0 && (
+        <Card className="border-l-4 border-l-yellow-500">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Clock size={18} className="text-yellow-500" />Pending Approval ({pendingUsers.length})</CardTitle>
+            <CardDescription>New accounts waiting for your approval</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {pendingUsers.map(u => (
+                <div key={u.id} className="flex items-center justify-between p-3 rounded-lg border bg-yellow-50/50 dark:bg-yellow-900/10" data-testid={`pending-user-${u.id}`}>
+                  <div>
+                    <p className="font-medium">{u.name}</p>
+                    <p className="text-sm text-muted-foreground">{u.email} &middot; <span className="capitalize">{u.role?.replace('_', ' ')}</span> &middot; {u.business_type?.replace('_', ' ') || 'No business'}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={() => handleApprove(u.id, 'approved')} data-testid={`approve-${u.id}`}><CheckCircle2 size={14} className="mr-1" />Approve</Button>
+                    <Button size="sm" variant="destructive" onClick={() => handleApprove(u.id, 'rejected')} data-testid={`reject-${u.id}`}><XCircle size={14} className="mr-1" />Reject</Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-heading font-bold text-primary">User Management</h1>

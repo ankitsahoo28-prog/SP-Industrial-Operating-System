@@ -73,10 +73,13 @@ export const invApi = {
   getLidarScans: (params) => api.get('/inv/lidar-scans', { params }),
   getLowStock: (params) => api.get('/inv/low-stock', { params }),
   getDipHistory: () => api.get('/inv/dip-history'),
+  aiAssistant: (statement, business_type) => api.post('/inv/ai-assistant', { statement, business_type }),
+  aiExecute: (movements) => api.post('/inv/ai-execute', movements),
 };
 
 export const dashboardApi = {
   getStats: () => api.get('/dashboard/stats'),
+  getPredictions: () => api.get('/dashboard/predictions'),
 };
 
 export const auditApi = {
@@ -84,6 +87,26 @@ export const auditApi = {
 };
 
 export const deleteUser = (userId) => api.delete(`/users/${userId}`);
+
+// Self-registration & Password Reset
+export const authApi = {
+  selfRegister: (data) => api.post('/auth/self-register', data),
+  forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
+  resetPassword: (token, new_password) => api.post('/auth/reset-password', { token, new_password }),
+  getPendingUsers: () => api.get('/auth/pending-users'),
+  approveUser: (userId, action) => api.patch(`/auth/approve/${userId}?action=${action}`),
+};
+
+// App Settings
+export const settingsApi = {
+  get: () => api.get('/settings'),
+  update: (data) => api.put('/settings', data),
+};
+
+// Translations
+export const i18nApi = {
+  getTranslations: (lang) => api.get(`/translations/${lang}`),
+};
 
 // Double-Entry Bookkeeping APIs
 export const bookkeepingApi = {

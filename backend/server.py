@@ -114,6 +114,7 @@ class User(BaseModel):
     manager_id: Optional[str] = None
     shift_start: Optional[str] = None
     shift_end: Optional[str] = None
+    status: Optional[str] = "approved"  # pending, approved, rejected
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class UserCreate(BaseModel):
@@ -256,6 +257,36 @@ class AuditLog(BaseModel):
     new_data: Optional[Dict[str, Any]] = None
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+# Self-Registration Model
+class SelfRegisterRequest(BaseModel):
+    email: EmailStr
+    password: str
+    name: str
+    phone: Optional[str] = None
+    role: Optional[UserRole] = UserRole.GROUND_STAFF
+    business_type: Optional[BusinessType] = None
+
+# Forgot/Reset Password
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+# App Settings
+class AppSettingsUpdate(BaseModel):
+    app_name: Optional[str] = None
+    logo_url: Optional[str] = None
+    bg_video_url: Optional[str] = None
+    primary_color: Optional[str] = None
+    tagline: Optional[str] = None
+
+# AI Inventory Request
+class AiInventoryRequest(BaseModel):
+    statement: str
+    business_type: Optional[str] = None
+
 # Helper Functions
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
@@ -336,6 +367,11 @@ async def login(credentials: UserLogin):
     if not verify_password(credentials.password, user_doc['password_hash']):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
+    if user_doc.get('status') == 'pending':
+        raise HTTPException(status_code=403, detail="Your account is pending approval by the Director")
+    if user_doc.get('status') == 'rejected':
+        raise HTTPException(status_code=403, detail="Your account request was rejected")
+    
     if isinstance(user_doc['created_at'], str):
         user_doc['created_at'] = datetime.fromisoformat(user_doc['created_at'])
     
@@ -354,6 +390,92 @@ async def get_me(current_user: dict = Depends(get_current_user)):
         user_doc['created_at'] = datetime.fromisoformat(user_doc['created_at'])
     
     return User(**user_doc)
+
+# Self-Registration (pending approval)
+@api_router.post("/auth/self-register")
+async def self_register(data: SelfRegisterRequest):
+    existing = await db.users.find_one({'email': data.email}, {'_id': 0})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    password_hash = hash_password(data.password)
+    user_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    
+    doc = {
+        'id': user_id, 'email': data.email, 'name': data.name,
+        'role': data.role.value if data.role else 'ground_staff',
+        'phone': data.phone, 'business_type': data.business_type.value if data.business_type else None,
+        'manager_id': None, 'shift_start': None, 'shift_end': None,
+        'status': 'pending', 'password_hash': password_hash, 'created_at': now,
+    }
+    await db.users.insert_one(doc)
+    return {"message": "Account created. Awaiting Director approval.", "user_id": user_id}
+
+# Approve/Reject user (Director)
+@api_router.patch("/auth/approve/{user_id}")
+async def approve_user(user_id: str, action: str = "approved", current_user: dict = Depends(get_current_user)):
+    if current_user['role'] != UserRole.DIRECTOR:
+        raise HTTPException(status_code=403, detail="Only directors can approve users")
+    if action not in ('approved', 'rejected'):
+        raise HTTPException(status_code=400, detail="Action must be 'approved' or 'rejected'")
+    await db.users.update_one({'id': user_id}, {'$set': {'status': action}})
+    return {"message": f"User {action}"}
+
+# Get pending users
+@api_router.get("/auth/pending-users")
+async def get_pending_users(current_user: dict = Depends(get_current_user)):
+    if current_user['role'] != UserRole.DIRECTOR:
+        raise HTTPException(status_code=403, detail="Only directors can view pending users")
+    users = await db.users.find({'status': 'pending'}, {'_id': 0, 'password_hash': 0}).to_list(500)
+    for u in users:
+        if isinstance(u.get('created_at'), str):
+            u['created_at'] = datetime.fromisoformat(u['created_at'])
+    return users
+
+# Forgot Password
+@api_router.post("/auth/forgot-password")
+async def forgot_password(data: ForgotPasswordRequest):
+    user_doc = await db.users.find_one({'email': data.email}, {'_id': 0})
+    if not user_doc:
+        return {"message": "If the email exists, a reset link has been sent"}
+    reset_token = str(uuid.uuid4())
+    await db.users.update_one({'email': data.email}, {'$set': {'reset_token': reset_token}})
+    logger.info(f"Password reset token for {data.email}: {reset_token}")
+    return {"message": "If the email exists, a reset link has been sent", "reset_token": reset_token}
+
+# Reset Password
+@api_router.post("/auth/reset-password")
+async def reset_password(data: ResetPasswordRequest):
+    user_doc = await db.users.find_one({'reset_token': data.token}, {'_id': 0})
+    if not user_doc:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+    new_hash = hash_password(data.new_password)
+    await db.users.update_one({'reset_token': data.token}, {'$set': {'password_hash': new_hash, 'reset_token': None}})
+    return {"message": "Password reset successfully"}
+
+# ============================================================
+# APP SETTINGS (Director customization)
+# ============================================================
+
+@api_router.get("/settings")
+async def get_app_settings():
+    settings = await db.app_settings.find_one({"key": "app_config"}, {"_id": 0})
+    if not settings:
+        return {"app_name": "SP GROUP", "logo_url": "/sp-logo.png", "bg_video_url": "/bg-video.mp4", "primary_color": "#1a1a2e", "tagline": "Industrial Operating System"}
+    return settings
+
+@api_router.put("/settings")
+async def update_app_settings(data: AppSettingsUpdate, current_user: dict = Depends(get_current_user)):
+    if current_user['role'] != UserRole.DIRECTOR:
+        raise HTTPException(status_code=403, detail="Only directors can update settings")
+    update_dict = {k: v for k, v in data.model_dump().items() if v is not None}
+    update_dict["key"] = "app_config"
+    update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
+    update_dict["updated_by"] = current_user['user_id']
+    await db.app_settings.update_one({"key": "app_config"}, {"$set": update_dict}, upsert=True)
+    result = await db.app_settings.find_one({"key": "app_config"}, {"_id": 0})
+    return result
 
 # User Management Routes
 @api_router.get("/users", response_model=List[User])
@@ -1203,120 +1325,75 @@ async def get_predictions(current_user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Only directors can view predictions")
     
     try:
-        # Get historical data from last 3 months
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        import json as json_lib
+        import re as re_lib
+
+        emergent_key = os.environ.get('EMERGENT_LLM_KEY')
         three_months_ago = datetime.now(timezone.utc) - timedelta(days=90)
         
-        transactions = await db.transactions.find({
-            'date': {'$gte': three_months_ago.isoformat()}
-        }, {'_id': 0}).to_list(10000)
+        transactions = await db.transactions.find({'date': {'$gte': three_months_ago.isoformat()}}, {'_id': 0}).to_list(10000)
+        inv_items = await db.inventory_items.find({}, {'_id': 0}).to_list(5000)
+        movements = await db.stock_movements.find({'created_at': {'$gte': three_months_ago.isoformat()}}, {'_id': 0}).to_list(5000)
+        journal_entries = await db.journal_entries.find({'created_at': {'$gte': three_months_ago.isoformat()}}, {'_id': 0}).to_list(5000)
         
-        inventory_items = await db.inventory.find({}, {'_id': 0}).to_list(1000)
-        reports = await db.reports.find({
-            'timestamp': {'$gte': three_months_ago.isoformat()}
-        }, {'_id': 0}).to_list(10000)
-        
-        # Calculate historical averages
-        total_income = sum(t['amount'] for t in transactions if t['transaction_type'] == 'income')
-        total_expense = sum(t['amount'] for t in transactions if t['transaction_type'] == 'expense')
-        months = 3
-        avg_monthly_income = total_income / months if months > 0 else 0
-        avg_monthly_expense = total_expense / months if months > 0 else 0
-        
-        # Generate AI predictions using OpenAI
-        from ai_service import client
-        
-        prompt = f"""
-Based on the following historical data from an industrial business, predict next month's financial and inventory needs.
+        total_income = sum(t['amount'] for t in transactions if t.get('transaction_type') == 'income')
+        total_expense = sum(t['amount'] for t in transactions if t.get('transaction_type') == 'expense')
+        avg_monthly_income = total_income / 3
+        avg_monthly_expense = total_expense / 3
+        total_inv_value = sum(i.get('total_value', 0) for i in inv_items)
+        low_stock_count = sum(1 for i in inv_items if i.get('current_stock', 0) < i.get('min_stock_level', 10))
+        total_purchases = sum(m.get('total_amount', 0) for m in movements if m.get('reference_type') == 'purchase')
+        total_sales = sum(m.get('total_amount', 0) for m in movements if m.get('reference_type') == 'sale')
 
-Historical Data (Last 3 months):
-- Total Income: ₹{total_income:.2f}
-- Total Expense: ₹{total_expense:.2f}
-- Average Monthly Income: ₹{avg_monthly_income:.2f}
-- Average Monthly Expense: ₹{avg_monthly_expense:.2f}
-- Number of Transactions: {len(transactions)}
-- Number of Reports Filed: {len(reports)}
-- Active Inventory Items: {len(inventory_items)}
+        prompt = f"""Based on the following REAL historical data from SP GROUP industrial businesses, generate next month's predictions.
 
-Provide predictions in this exact JSON format (no markdown, just JSON):
-{{
-  "revenue": predicted_revenue_number,
-  "expenses": predicted_expenses_number,
-  "revenue_trend": "brief explanation",
-  "expense_trend": "brief explanation",
-  "profit_trend": "brief explanation",
-  "revenue_confidence": confidence_percentage,
-  "expense_breakdown": [
-    {{"category": "Salary", "amount": amount}},
-    {{"category": "Raw Materials", "amount": amount}},
-    {{"category": "Utilities", "amount": amount}}
-  ],
-  "recommendations": ["recommendation1", "recommendation2", "recommendation3"],
-  "inventory_alerts": [
-    {{"item_name": "item", "predicted_quantity": number, "unit": "unit", "current_stock": number}}
-  ]
-}}
+FINANCIAL DATA (Last 3 months):
+- Total Income: ₹{total_income:.0f} | Monthly Avg: ₹{avg_monthly_income:.0f}
+- Total Expense: ₹{total_expense:.0f} | Monthly Avg: ₹{avg_monthly_expense:.0f}
+- Transaction Count: {len(transactions)}
+- Journal Entries: {len(journal_entries)}
 
-Ensure all numbers are realistic and based on the trends.
-"""
-        
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "You are a financial forecasting AI. Always respond with valid JSON only."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.5,
-            max_tokens=1000
-        )
-        
-        import json
-        prediction_text = response.choices[0].message.content.strip()
-        
-        # Remove markdown code blocks if present
-        if prediction_text.startswith('```'):
-            prediction_text = prediction_text.split('```')[1]
-            if prediction_text.startswith('json'):
-                prediction_text = prediction_text[4:]
-        
-        predictions = json.loads(prediction_text)
-        
-        # Add inventory alerts from actual inventory
-        if len(inventory_items) > 0:
-            low_stock_items = []
-            for item in inventory_items:
-                if item['current_stock'] < item['opening_stock'] * 0.3:
-                    low_stock_items.append({
-                        "item_name": item['item_name'],
-                        "predicted_quantity": item['opening_stock'] * 0.5,
-                        "unit": item['unit'],
-                        "current_stock": item['current_stock']
-                    })
-            if low_stock_items:
-                predictions['inventory_alerts'] = low_stock_items[:5]
-        
-        logger.info("Generated AI predictions successfully")
+INVENTORY DATA:
+- Total Items: {len(inv_items)} | Total Value: ₹{total_inv_value:.0f}
+- Low Stock Items: {low_stock_count}
+- Purchase Volume: ₹{total_purchases:.0f} | Sales Volume: ₹{total_sales:.0f}
+- Stock Movements: {len(movements)}
+
+TOP LOW STOCK ITEMS: {json_lib.dumps([{{"name": i["name"], "stock": i.get("current_stock",0), "min": i.get("min_stock_level",10), "unit": i.get("unit","")}} for i in inv_items if i.get("current_stock",0) < i.get("min_stock_level",10)][:8])}
+
+RESPOND IN EXACT JSON (no markdown):
+{{"revenue": number, "expenses": number, "revenue_trend": "explanation", "expense_trend": "explanation", "profit_trend": "explanation", "revenue_confidence": percentage, "expense_breakdown": [{{"category": "name", "amount": number}}], "recommendations": ["rec1","rec2","rec3"], "inventory_alerts": [{{"item_name": "name", "predicted_quantity": number, "unit": "unit", "current_stock": number}}]}}"""
+
+        chat = LlmChat(
+            api_key=emergent_key,
+            session_id=f"sp-predictions-{uuid.uuid4().hex[:6]}",
+            system_message="You are a financial and inventory forecasting AI for SP GROUP industrial operations. Always respond with valid JSON only, no markdown."
+        ).with_model("openai", "gpt-4o-mini")
+
+        response = await chat.send_message(UserMessage(text=prompt))
+        json_match = re_lib.search(r'```(?:json)?\s*([\s\S]*?)```', response)
+        json_str = json_match.group(1).strip() if json_match else response.strip()
+        predictions = json_lib.loads(json_str)
+
+        # Enrich with real low-stock data
+        real_low_stock = [{"item_name": i["name"], "predicted_quantity": i.get("min_stock_level", 10) * 2, "unit": i.get("unit", ""), "current_stock": i.get("current_stock", 0)} for i in inv_items if i.get("current_stock", 0) < i.get("min_stock_level", 10)][:5]
+        if real_low_stock:
+            predictions['inventory_alerts'] = real_low_stock
+
         return predictions
-        
+
     except Exception as e:
         logger.error(f"Failed to generate predictions: {str(e)}")
-        # Return fallback predictions
         return {
-            "revenue": avg_monthly_income * 1.05 if avg_monthly_income > 0 else 50000,
-            "expenses": avg_monthly_expense * 1.02 if avg_monthly_expense > 0 else 40000,
+            "revenue": avg_monthly_income * 1.05 if 'avg_monthly_income' in dir() and avg_monthly_income > 0 else 50000,
+            "expenses": avg_monthly_expense * 1.02 if 'avg_monthly_expense' in dir() and avg_monthly_expense > 0 else 40000,
             "revenue_trend": "Based on 3-month average with 5% growth projection",
             "expense_trend": "Expected 2% increase in operational costs",
             "profit_trend": "Modest profit expected based on current trends",
             "revenue_confidence": 75,
-            "expense_breakdown": [
-                {"category": "Salary", "amount": avg_monthly_expense * 0.4},
-                {"category": "Raw Materials", "amount": avg_monthly_expense * 0.35},
-                {"category": "Utilities", "amount": avg_monthly_expense * 0.25}
-            ],
-            "recommendations": [
-                "Monitor expenses closely for cost optimization",
-                "Focus on increasing revenue streams",
-                "Maintain adequate inventory levels"
-            ],
+            "expense_breakdown": [{"category": "Salary", "amount": 20000}, {"category": "Raw Materials", "amount": 17500}, {"category": "Utilities", "amount": 12500}],
+            "recommendations": ["Monitor expenses closely", "Focus on revenue growth", "Maintain inventory levels"],
             "inventory_alerts": []
         }
 
@@ -1632,6 +1709,128 @@ async def api_dip_history(current_user: dict = Depends(get_current_user)):
 # ============================================================
 # END INVENTORY MANAGEMENT SYSTEM
 # ============================================================
+
+# ============================================================
+# AI INVENTORY ASSISTANT
+# ============================================================
+
+@api_router.post("/inv/ai-assistant")
+async def ai_inventory_assistant(req: AiInventoryRequest, current_user: dict = Depends(get_current_user)):
+    """AI parses natural language inventory inputs into structured stock movements"""
+    if current_user['role'] == UserRole.GROUND_STAFF:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+
+    emergent_key = os.environ.get('EMERGENT_LLM_KEY')
+    biz = req.business_type or current_user.get('business_type') or 'all'
+
+    items_query = {} if biz == 'all' else {"business_type": biz}
+    inv_items = await db.inventory_items.find(items_query, {"_id": 0, "id": 1, "name": 1, "business_type": 1, "category": 1, "current_stock": 1, "unit": 1}).to_list(500)
+    items_list = "\n".join([f"- ID:{i['id']} | {i['name']} | {i.get('business_type','')} | {i['category']} | Stock:{i['current_stock']} {i['unit']}" for i in inv_items[:100]])
+
+    system_prompt = f"""You are an expert inventory management AI for SP GROUP industrial businesses.
+Parse natural language inventory transactions into structured data.
+
+AVAILABLE INVENTORY ITEMS:
+{items_list}
+
+RULES:
+1. Match the item to the closest available inventory item by name
+2. Determine movement_type: 'in' for purchases/receipts/returns, 'out' for sales/dispatches/wastage/consumption
+3. Determine reference_type: purchase, sale, wastage, consumption, return, production
+4. Extract quantity, unit_price, party_name if mentioned
+5. If item not found, suggest creating it
+6. Currency is INR
+
+RESPOND IN THIS EXACT JSON FORMAT:
+{{
+  "understood": true,
+  "summary": "Brief description of what was parsed",
+  "movements": [
+    {{
+      "item_id": "matched item ID or null",
+      "item_name": "item name",
+      "movement_type": "in or out",
+      "reference_type": "purchase/sale/wastage/consumption/return",
+      "quantity": number,
+      "unit_price": number,
+      "party_name": "vendor/customer name or null",
+      "notes": "any additional context"
+    }}
+  ],
+  "needs_clarification": false,
+  "clarification_question": "",
+  "create_new_item": false,
+  "new_item_suggestion": null
+}}"""
+
+    try:
+        chat = LlmChat(
+            api_key=emergent_key,
+            session_id=f"ai-inv-{current_user['user_id']}-{uuid.uuid4().hex[:6]}",
+            system_message=system_prompt
+        ).with_model("openai", "gpt-4o-mini")
+
+        user_message = UserMessage(text=f"Parse this inventory transaction: {req.statement}")
+        response = await chat.send_message(user_message)
+
+        import json as json_lib
+        import re
+        json_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', response)
+        json_str = json_match.group(1).strip() if json_match else response.strip()
+        parsed = json_lib.loads(json_str)
+        return parsed
+    except Exception as e:
+        logger.error(f"AI Inventory Assistant error: {e}")
+        return {
+            "understood": False, "summary": "", "movements": [],
+            "needs_clarification": True,
+            "clarification_question": "Could not process. Please rephrase your inventory transaction.",
+            "create_new_item": False, "new_item_suggestion": None
+        }
+
+@api_router.post("/inv/ai-execute")
+async def ai_inventory_execute(movements: List[Dict[str, Any]], current_user: dict = Depends(get_current_user)):
+    """Execute AI-parsed movements"""
+    if current_user['role'] == UserRole.GROUND_STAFF:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    results = []
+    biz = current_user.get('business_type')
+    for m in movements:
+        if not m.get('item_id'):
+            results.append({"status": "skipped", "reason": "No item_id"})
+            continue
+        try:
+            item = await db.inventory_items.find_one({"id": m['item_id']}, {"_id": 0})
+            if item:
+                biz = item.get("business_type", biz)
+            movement = await record_stock_movement(
+                db, m['item_id'], m['movement_type'], float(m['quantity']),
+                float(m.get('unit_price', 0)), m.get('reference_type', 'purchase'),
+                str(uuid.uuid4()), current_user['user_id'], biz,
+                m.get('notes', ''), None, m.get('party_name')
+            )
+            movement.pop("_id", None)
+
+            # Auto journal entry for purchases/sales
+            total = round(float(m['quantity']) * float(m.get('unit_price', 0)), 2)
+            if total > 0 and m.get('reference_type') in ('purchase', 'sale'):
+                try:
+                    if m['reference_type'] == 'purchase':
+                        lines = [{"account_name": "Inventory", "debit": total, "credit": 0}, {"account_name": m.get('party_name') or "Accounts Payable", "debit": 0, "credit": total}]
+                        await create_journal_entry(db, f"AI: Purchase {m['quantity']} {m.get('item_name','')} @ ₹{m.get('unit_price',0)}", lines, current_user['user_id'], biz)
+                    else:
+                        lines = [{"account_name": m.get('party_name') or "Accounts Receivable", "debit": total, "credit": 0}, {"account_name": "Sales", "debit": 0, "credit": total}]
+                        await create_journal_entry(db, f"AI: Sale {m['quantity']} {m.get('item_name','')} @ ₹{m.get('unit_price',0)}", lines, current_user['user_id'], biz)
+                except Exception as je:
+                    logger.error(f"AI auto journal entry failed: {je}")
+
+            results.append({"status": "success", "movement": movement})
+        except ValueError as e:
+            results.append({"status": "error", "reason": str(e)})
+    return {"results": results}
 
 @api_router.get("/dashboard/trends")
 async def get_trends(current_user: dict = Depends(get_current_user)):

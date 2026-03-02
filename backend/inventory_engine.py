@@ -41,6 +41,13 @@ BUSINESS_ITEM_CATEGORIES = {
         "consumables": ["Lubricants", "Engine Oil", "Gear Oil", "Coolant"],
         "units": "Litres/Units",
     },
+    "hotel": {
+        "raw_materials": ["Rice", "Wheat Flour", "Cooking Oil", "Vegetables", "Spices", "Dairy", "Meat", "Fish", "Eggs"],
+        "finished_goods": ["Ready Meals", "Beverages"],
+        "consumables": ["Bed Linen", "Towels", "Toiletries", "Cleaning Supplies", "Disposable Plates", "Tissue Paper"],
+        "spare_parts": ["Light Bulbs", "Plumbing Parts", "AC Filters"],
+        "units": "Kg/Units",
+    },
 }
 
 DENSITY_PRESETS = {
