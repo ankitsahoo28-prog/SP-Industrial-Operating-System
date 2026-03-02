@@ -17,7 +17,10 @@ import {
   Settings,
   Globe,
   Building2,
-  BarChart3
+  BarChart3,
+  Calendar,
+  Shield,
+  ArrowLeftRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -39,6 +42,7 @@ export const Layout = ({ children, role }) => {
     if (role === 'director') {
       return [
         ...base,
+        { icon: Calendar, label: 'Daily Summary', path: '/daily-summary' },
         { icon: Building2, label: 'Companies', path: '/companies' },
         { icon: BarChart3, label: 'Executive', path: '/executive' },
         { icon: Users, label: t('users'), path: '/users' },
@@ -48,6 +52,8 @@ export const Layout = ({ children, role }) => {
         { icon: Package, label: t('indents'), path: '/indents' },
         { icon: DollarSign, label: t('accounting'), path: '/accounting' },
         { icon: Warehouse, label: t('inventory'), path: '/inventory' },
+        { icon: ArrowLeftRight, label: 'Reconciliation', path: '/reconciliation' },
+        { icon: Shield, label: 'Roles', path: '/roles' },
         { icon: History, label: t('audit_trail'), path: '/audit-log' },
         { icon: Settings, label: t('settings'), path: '/settings' },
       ];

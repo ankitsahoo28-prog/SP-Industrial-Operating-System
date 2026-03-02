@@ -136,3 +136,27 @@ export const companyApi = {
   getUsers: (company_id) => api.get(`/companies/${company_id}/users`),
   getExecutiveReport: (params) => api.get('/director/executive-report', { params }),
 };
+
+// Director Features
+export const directorApi = {
+  getDailySummary: () => api.get('/director/daily-summary'),
+  updateJournalEntry: (id, data) => api.put(`/director/journal-entries/${id}`, data),
+  deleteJournalEntry: (id) => api.delete(`/director/journal-entries/${id}`),
+};
+
+// Job Role Management
+export const roleApi = {
+  getAll: () => api.get('/job-roles'),
+  create: (data) => api.post('/job-roles', data),
+  update: (id, data) => api.put(`/job-roles/${id}`, data),
+  remove: (id) => api.delete(`/job-roles/${id}`),
+  getPermissions: () => api.get('/job-roles/permissions'),
+};
+
+// Inter-Company Reconciliation
+export const reconciliationApi = {
+  getAll: (status) => api.get('/reconciliation', { params: { status } }),
+  create: (data) => api.post('/reconciliation', data),
+  updateStatus: (id, status, notes) => api.patch(`/reconciliation/${id}`, null, { params: { status, notes } }),
+  remove: (id) => api.delete(`/reconciliation/${id}`),
+};

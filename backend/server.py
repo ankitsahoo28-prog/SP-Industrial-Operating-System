@@ -359,6 +359,19 @@ async def require_company_access(user_id: str, role: str, company_id: str):
     if not has_access:
         raise HTTPException(status_code=403, detail="No access to this company")
 
+
+async def resolve_company_id(user_id: str, role: str, company_id: Optional[str]) -> Optional[str]:
+    """Resolve company_id: directors get None (all data), others get their first assigned company."""
+    if company_id:
+        return company_id
+    if role == "director":
+        return None  # Directors see all
+    # For non-directors, auto-resolve to their first assigned company
+    mapping = await db.company_users.find_one({"user_id": user_id}, {"_id": 0})
+    if mapping:
+        return mapping["company_id"]
+    return None
+
 # Audit logging helper
 async def log_audit(action: str, entity_type: str, entity_id: str, user_id: str, old_data: Optional[Dict] = None, new_data: Optional[Dict] = None):
     """Log changes for audit trail"""
@@ -631,16 +644,19 @@ async def director_executive_report(company_id: Optional[str] = None, period: st
         all_companies = await get_companies(db)
         company_ids = [c["id"] for c in all_companies]
 
-    report = {"companies": [], "totals": {"revenue": 0, "expenses": 0, "profit": 0, "cash_position": 0}}
+    report = {"companies": [], "totals": {"revenue": 0, "expenses": 0, "profit": 0, "cash_position": 0, "inventory_value": 0}}
 
     for cid in company_ids:
         comp = await get_company(db, cid)
         if not comp:
             continue
 
-        # Get journal entries for this company in the period
-        je_query = {"company_id": cid, "created_at": {"$gte": start_date}}
-        entries = await db.journal_entries.find(je_query, {"_id": 0}).to_list(10000)
+        # Get journal entries for this company (all time + period filter)
+        je_query = {"company_id": cid}
+        entries_all = await db.journal_entries.find(je_query, {"_id": 0}).to_list(10000)
+        
+        # Filter by period using string comparison on ISO dates
+        entries = [e for e in entries_all if e.get("created_at", "") >= start_date or e.get("date", "") >= start_date]
 
         revenue = 0
         expenses = 0
@@ -651,7 +667,7 @@ async def director_executive_report(company_id: Optional[str] = None, period: st
                 elif line.get("account_type") == "expense":
                     expenses += line.get("debit", 0)
 
-        # Get cash/bank balance
+        # Get cash/bank balance from ledger
         cash_query = {"company_id": cid, "account_name": {"$in": ["Cash", "Bank"]}}
         cash_ledgers = await db.ledger_balances.find(cash_query, {"_id": 0}).to_list(10)
         cash_position = sum(l.get("balance", 0) for l in cash_ledgers)
@@ -659,6 +675,33 @@ async def director_executive_report(company_id: Optional[str] = None, period: st
         # Inventory value
         inv_items = await db.inventory_items.find({"company_id": cid}, {"_id": 0}).to_list(5000)
         inv_value = sum(i.get("total_value", 0) for i in inv_items)
+
+        # Also get transaction-based data (legacy transactions collection)
+        txn_query = {"company_id": cid}
+        txns = await db.transactions.find(txn_query, {"_id": 0}).to_list(10000)
+        for t in txns:
+            txn_date = t.get("date", "")
+            if isinstance(txn_date, datetime):
+                txn_date = txn_date.isoformat()
+            if txn_date >= start_date:
+                if t.get("transaction_type") == "income":
+                    revenue += t.get("amount", 0)
+                elif t.get("transaction_type") == "expense":
+                    expenses += t.get("amount", 0)
+
+        # If no company-scoped data, try business_type fallback
+        if revenue == 0 and expenses == 0 and comp.get("business_type"):
+            btype = comp["business_type"]
+            bt_txns = await db.transactions.find({"business_type": btype, "company_id": None}, {"_id": 0}).to_list(10000)
+            for t in bt_txns:
+                txn_date = t.get("date", "")
+                if isinstance(txn_date, datetime):
+                    txn_date = txn_date.isoformat()
+                if txn_date >= start_date:
+                    if t.get("transaction_type") == "income":
+                        revenue += t.get("amount", 0)
+                    elif t.get("transaction_type") == "expense":
+                        expenses += t.get("amount", 0)
 
         comp_report = {
             "company_id": cid,
@@ -675,6 +718,7 @@ async def director_executive_report(company_id: Optional[str] = None, period: st
         report["totals"]["expenses"] += expenses
         report["totals"]["profit"] += (revenue - expenses)
         report["totals"]["cash_position"] += cash_position
+        report["totals"]["inventory_value"] += inv_value
 
     report["totals"] = {k: round(v, 2) for k, v in report["totals"].items()}
     report["period"] = period
@@ -701,11 +745,10 @@ async def get_users(current_user: dict = Depends(get_current_user)):
 
 @api_router.post("/users", response_model=User)
 async def create_user(user_data: UserCreate, current_user: dict = Depends(get_current_user)):
-    if current_user['role'] == UserRole.DIRECTOR and user_data.role == UserRole.MANAGER:
-        pass
+    if current_user['role'] == UserRole.DIRECTOR and user_data.role in (UserRole.MANAGER, UserRole.DIRECTOR, UserRole.GROUND_STAFF):
+        pass  # Directors can create any role
     elif current_user['role'] == UserRole.MANAGER and user_data.role == UserRole.GROUND_STAFF:
         user_data.manager_id = current_user['user_id']
-        # Inherit business type from manager
         if not user_data.business_type:
             user_data.business_type = current_user['business_type']
     else:
@@ -724,16 +767,27 @@ async def create_user(user_data: UserCreate, current_user: dict = Depends(get_cu
     doc['created_at'] = doc['created_at'].isoformat()
     
     await db.users.insert_one(doc)
+
+    # Auto-assign user to matching company by business_type
+    if user_data.business_type and user_data.role != UserRole.DIRECTOR:
+        matching_company = await db.companies.find_one(
+            {"business_type": user_data.business_type, "status": "active"},
+            {"_id": 0, "id": 1}
+        )
+        if matching_company:
+            await assign_user_to_company(db, user.id, matching_company["id"], current_user['user_id'])
+
     return user
 
 # Task Routes
 @api_router.get("/tasks", response_model=List[Task])
 async def get_tasks(business_type: Optional[str] = None, company_id: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+    resolved_cid = await resolve_company_id(current_user['user_id'], current_user['role'], company_id)
     query = {}
     
-    if company_id:
-        await require_company_access(current_user['user_id'], current_user['role'], company_id)
-        query['company_id'] = company_id
+    if resolved_cid:
+        await require_company_access(current_user['user_id'], current_user['role'], resolved_cid)
+        query['company_id'] = resolved_cid
 
     if current_user['role'] == UserRole.GROUND_STAFF:
         query['assigned_to'] = current_user['user_id']
@@ -759,8 +813,9 @@ async def create_task(task_data: TaskCreate, company_id: Optional[str] = None, c
     if current_user['role'] == UserRole.GROUND_STAFF:
         raise HTTPException(status_code=403, detail="Access denied")
     
-    if company_id:
-        await require_company_access(current_user['user_id'], current_user['role'], company_id)
+    resolved_cid = await resolve_company_id(current_user['user_id'], current_user['role'], company_id)
+    if resolved_cid:
+        await require_company_access(current_user['user_id'], current_user['role'], resolved_cid)
 
     task_dict = task_data.model_dump()
     task_dict['assigned_by'] = current_user['user_id']
@@ -768,7 +823,7 @@ async def create_task(task_data: TaskCreate, company_id: Optional[str] = None, c
     task = Task(**task_dict)
     
     doc = task.model_dump()
-    doc['company_id'] = company_id
+    doc['company_id'] = resolved_cid
     doc['created_at'] = doc['created_at'].isoformat()
     doc['updated_at'] = doc['updated_at'].isoformat()
     if doc.get('deadline'):
@@ -794,6 +849,11 @@ async def update_task(task_id: str, update_data: TaskUpdate, current_user: dict 
     if not task_doc:
         raise HTTPException(status_code=404, detail="Task not found")
     
+    # Directors can update any task; others must be assigned or assigner
+    if current_user['role'] != UserRole.DIRECTOR:
+        if task_doc.get('assigned_to') != current_user['user_id'] and task_doc.get('assigned_by') != current_user['user_id']:
+            raise HTTPException(status_code=403, detail="Not authorized to update this task")
+
     update_dict = update_data.model_dump(exclude_unset=True)
     update_dict['updated_at'] = datetime.now(timezone.utc).isoformat()
     
@@ -1010,9 +1070,10 @@ class InventoryItemCreateNew(BaseModel):
 async def get_accounts(company_id: Optional[str] = None, current_user: dict = Depends(get_current_user)):
     if current_user['role'] == UserRole.GROUND_STAFF:
         raise HTTPException(status_code=403, detail="Access denied")
+    resolved_cid = await resolve_company_id(current_user['user_id'], current_user['role'], company_id)
     query = {}
-    if company_id:
-        query["company_id"] = company_id
+    if resolved_cid:
+        query["company_id"] = resolved_cid
     accounts = await db.accounts.find(query, {"_id": 0}).sort("code", 1).to_list(1000)
     return accounts
 
@@ -1104,15 +1165,16 @@ CRITICAL: journal_lines must NEVER be empty when needs_clarification is false. T
 async def post_journal_entry(req: JournalPostRequest, company_id: Optional[str] = None, current_user: dict = Depends(get_current_user)):
     if current_user['role'] == UserRole.GROUND_STAFF:
         raise HTTPException(status_code=403, detail="Access denied")
-    if company_id:
-        await require_company_access(current_user['user_id'], current_user['role'], company_id)
+    resolved_cid = await resolve_company_id(current_user['user_id'], current_user['role'], company_id)
+    if resolved_cid:
+        await require_company_access(current_user['user_id'], current_user['role'], resolved_cid)
 
     try:
         entry = await create_journal_entry(
             db, req.narration, req.lines,
             current_user['user_id'],
             current_user.get('business_type'),
-            company_id
+            resolved_cid
         )
         entry.pop('_id', None)
         for line in entry.get('lines', []):
@@ -1126,10 +1188,11 @@ async def post_journal_entry(req: JournalPostRequest, company_id: Optional[str] 
 async def get_journal_entries(company_id: Optional[str] = None, current_user: dict = Depends(get_current_user)):
     if current_user['role'] == UserRole.GROUND_STAFF:
         raise HTTPException(status_code=403, detail="Access denied")
+    resolved_cid = await resolve_company_id(current_user['user_id'], current_user['role'], company_id)
     query = {}
-    if company_id:
-        await require_company_access(current_user['user_id'], current_user['role'], company_id)
-        query["company_id"] = company_id
+    if resolved_cid:
+        await require_company_access(current_user['user_id'], current_user['role'], resolved_cid)
+        query["company_id"] = resolved_cid
     entries = await db.journal_entries.find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
     return entries
 
@@ -1138,17 +1201,18 @@ async def get_journal_entries(company_id: Optional[str] = None, current_user: di
 async def get_account_ledger(account_id: str, company_id: Optional[str] = None, current_user: dict = Depends(get_current_user)):
     if current_user['role'] == UserRole.GROUND_STAFF:
         raise HTTPException(status_code=403, detail="Access denied")
+    resolved_cid = await resolve_company_id(current_user['user_id'], current_user['role'], company_id)
 
     query = {"id": account_id}
-    if company_id:
-        query["company_id"] = company_id
+    if resolved_cid:
+        query["company_id"] = resolved_cid
     account = await db.accounts.find_one(query, {"_id": 0})
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
 
     je_query = {"lines.account_id": account_id}
-    if company_id:
-        je_query["company_id"] = company_id
+    if resolved_cid:
+        je_query["company_id"] = resolved_cid
     entries = await db.journal_entries.find(je_query, {"_id": 0}).sort("date", 1).to_list(1000)
 
     ledger_rows = []
@@ -1167,8 +1231,8 @@ async def get_account_ledger(account_id: str, company_id: Optional[str] = None, 
                 })
 
     lb_query = {"account_id": account_id}
-    if company_id:
-        lb_query["company_id"] = company_id
+    if resolved_cid:
+        lb_query["company_id"] = resolved_cid
     balance_doc = await db.ledger_balances.find_one(lb_query, {"_id": 0})
 
     return {
@@ -1182,9 +1246,10 @@ async def get_account_ledger(account_id: str, company_id: Optional[str] = None, 
 async def get_ledger_balances(company_id: Optional[str] = None, current_user: dict = Depends(get_current_user)):
     if current_user['role'] == UserRole.GROUND_STAFF:
         raise HTTPException(status_code=403, detail="Access denied")
+    resolved_cid = await resolve_company_id(current_user['user_id'], current_user['role'], company_id)
     query = {}
-    if company_id:
-        query["company_id"] = company_id
+    if resolved_cid:
+        query["company_id"] = resolved_cid
     balances = await db.ledger_balances.find(query, {"_id": 0}).to_list(1000)
     return balances
 
@@ -1193,19 +1258,22 @@ async def get_ledger_balances(company_id: Optional[str] = None, current_user: di
 async def trial_balance_report(company_id: Optional[str] = None, current_user: dict = Depends(get_current_user)):
     if current_user['role'] == UserRole.GROUND_STAFF:
         raise HTTPException(status_code=403, detail="Access denied")
-    return await get_trial_balance(db, company_id)
+    resolved_cid = await resolve_company_id(current_user['user_id'], current_user['role'], company_id)
+    return await get_trial_balance(db, resolved_cid)
 
 @api_router.get("/reports/profit-loss")
 async def profit_loss_report(company_id: Optional[str] = None, current_user: dict = Depends(get_current_user)):
     if current_user['role'] == UserRole.GROUND_STAFF:
         raise HTTPException(status_code=403, detail="Access denied")
-    return await get_profit_and_loss(db, company_id)
+    resolved_cid = await resolve_company_id(current_user['user_id'], current_user['role'], company_id)
+    return await get_profit_and_loss(db, resolved_cid)
 
 @api_router.get("/reports/balance-sheet")
 async def balance_sheet_report(company_id: Optional[str] = None, current_user: dict = Depends(get_current_user)):
     if current_user['role'] == UserRole.GROUND_STAFF:
         raise HTTPException(status_code=403, detail="Access denied")
-    return await get_balance_sheet(db, company_id)
+    resolved_cid = await resolve_company_id(current_user['user_id'], current_user['role'], company_id)
+    return await get_balance_sheet(db, resolved_cid)
 
 
 # Accounting Routes
@@ -1714,17 +1782,19 @@ async def inventory_dashboard(company_id: Optional[str] = None, current_user: di
     """Consolidated inventory dashboard for director"""
     if current_user['role'] == UserRole.GROUND_STAFF:
         raise HTTPException(status_code=403, detail="Access denied")
-    if company_id:
-        await require_company_access(current_user['user_id'], current_user['role'], company_id)
-    return await get_inventory_dashboard(db, company_id)
+    resolved_cid = await resolve_company_id(current_user['user_id'], current_user['role'], company_id)
+    if resolved_cid:
+        await require_company_access(current_user['user_id'], current_user['role'], resolved_cid)
+    return await get_inventory_dashboard(db, resolved_cid)
 
 @api_router.get("/inv/items")
 async def get_inventory_items(business_type: Optional[str] = None, category: Optional[str] = None, company_id: Optional[str] = None, current_user: dict = Depends(get_current_user)):
     """Get all inventory items with optional filters"""
+    resolved_cid = await resolve_company_id(current_user['user_id'], current_user['role'], company_id)
     query = {}
-    if company_id:
-        await require_company_access(current_user['user_id'], current_user['role'], company_id)
-        query['company_id'] = company_id
+    if resolved_cid:
+        await require_company_access(current_user['user_id'], current_user['role'], resolved_cid)
+        query['company_id'] = resolved_cid
     else:
         biz = business_type
         if current_user['role'] != UserRole.DIRECTOR and current_user.get('business_type'):
@@ -1741,8 +1811,9 @@ async def create_inventory_item_new(data: InventoryItemCreateNew, company_id: Op
     """Create a new inventory item"""
     if current_user['role'] == UserRole.GROUND_STAFF:
         raise HTTPException(status_code=403, detail="Access denied")
-    if company_id:
-        await require_company_access(current_user['user_id'], current_user['role'], company_id)
+    resolved_cid = await resolve_company_id(current_user['user_id'], current_user['role'], company_id)
+    if resolved_cid:
+        await require_company_access(current_user['user_id'], current_user['role'], resolved_cid)
     item = {
         "id": str(uuid.uuid4()),
         "name": data.name,
@@ -1754,7 +1825,7 @@ async def create_inventory_item_new(data: InventoryItemCreateNew, company_id: Op
         "avg_cost": data.avg_cost or 0,
         "total_value": (data.opening_stock or 0) * (data.avg_cost or 0),
         "density": data.density,
-        "company_id": company_id,
+        "company_id": resolved_cid,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.inventory_items.insert_one(item)
@@ -1769,8 +1840,9 @@ async def get_inventory_categories(current_user: dict = Depends(get_current_user
 @api_router.post("/inv/stock-movement")
 async def api_stock_movement(data: StockMovementRequest, company_id: Optional[str] = None, current_user: dict = Depends(get_current_user)):
     """Record a stock movement (purchase/sale/wastage/etc) with optional auto journal entry"""
-    if company_id:
-        await require_company_access(current_user['user_id'], current_user['role'], company_id)
+    resolved_cid = await resolve_company_id(current_user['user_id'], current_user['role'], company_id)
+    if resolved_cid:
+        await require_company_access(current_user['user_id'], current_user['role'], resolved_cid)
     biz = current_user.get('business_type')
     item = await db.inventory_items.find_one({"id": data.item_id}, {"_id": 0})
     if item:
@@ -2088,6 +2160,254 @@ async def get_trends(current_user: dict = Depends(get_current_user)):
         })
     
     return trends
+
+# ============================================================
+# DAILY SUMMARY FOR DIRECTOR
+# ============================================================
+
+@api_router.get("/director/daily-summary")
+async def director_daily_summary(current_user: dict = Depends(get_current_user)):
+    """Director daily summary - activities across all companies today"""
+    if current_user['role'] != UserRole.DIRECTOR:
+        raise HTTPException(status_code=403, detail="Directors only")
+
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+
+    # Journal entries created today
+    je_today = await db.journal_entries.find({"created_at": {"$gte": today_start}}, {"_id": 0}).to_list(1000)
+    total_debit_today = sum(e.get("total_debit", 0) for e in je_today)
+
+    # Stock movements today
+    movements_today = await db.stock_movements.find({"created_at": {"$gte": today_start}}, {"_id": 0}).to_list(1000)
+    stock_in = sum(m.get("quantity", 0) for m in movements_today if m.get("movement_type") == "in")
+    stock_out = sum(m.get("quantity", 0) for m in movements_today if m.get("movement_type") == "out")
+
+    # Tasks created/completed today
+    tasks_created = await db.tasks.count_documents({"created_at": {"$gte": today_start}})
+    tasks_completed = await db.tasks.count_documents({"updated_at": {"$gte": today_start}, "status": "completed"})
+
+    # Users approved today
+    users_approved = await db.users.count_documents({"status": "approved", "created_at": {"$gte": today_start}})
+    pending_users = await db.users.count_documents({"status": "pending"})
+
+    # Transactions today
+    txn_today = await db.transactions.find({"date": {"$gte": today_start}}, {"_id": 0}).to_list(1000)
+    income_today = sum(t.get("amount", 0) for t in txn_today if t.get("transaction_type") == "income")
+    expense_today = sum(t.get("amount", 0) for t in txn_today if t.get("transaction_type") == "expense")
+
+    # Low stock alerts
+    all_items = await db.inventory_items.find({}, {"_id": 0}).to_list(5000)
+    low_stock_count = sum(1 for i in all_items if i.get("current_stock", 0) < i.get("min_stock_level", 10))
+
+    # Company-wise breakdown
+    all_companies = await get_companies(db)
+    company_summaries = []
+    for comp in all_companies[:10]:
+        cid = comp["id"]
+        c_je = len([e for e in je_today if e.get("company_id") == cid])
+        c_moves = len([m for m in movements_today if m.get("company_id") == cid])
+        if c_je > 0 or c_moves > 0:
+            company_summaries.append({
+                "company_name": comp["name"],
+                "journal_entries": c_je,
+                "stock_movements": c_moves,
+            })
+
+    return {
+        "date": now.strftime("%Y-%m-%d"),
+        "journal_entries_count": len(je_today),
+        "total_debit_today": round(total_debit_today, 2),
+        "stock_movements": len(movements_today),
+        "stock_in": round(stock_in, 2),
+        "stock_out": round(stock_out, 2),
+        "tasks_created": tasks_created,
+        "tasks_completed": tasks_completed,
+        "income_today": round(income_today, 2),
+        "expense_today": round(expense_today, 2),
+        "net_today": round(income_today - expense_today, 2),
+        "users_approved": users_approved,
+        "pending_users": pending_users,
+        "low_stock_alerts": low_stock_count,
+        "company_activity": company_summaries,
+    }
+
+# ============================================================
+# JOB ROLE MANAGEMENT
+# ============================================================
+
+class JobRoleCreate(BaseModel):
+    name: str
+    description: Optional[str] = ""
+    permissions: List[str] = []  # e.g., ["view_inventory", "edit_accounting", "manage_tasks"]
+
+class JobRoleUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    permissions: Optional[List[str]] = None
+
+AVAILABLE_PERMISSIONS = [
+    "view_dashboard", "view_inventory", "edit_inventory", "view_accounting",
+    "edit_accounting", "manage_tasks", "manage_users", "manage_indents",
+    "view_reports", "create_reports", "manage_companies", "view_audit_log",
+]
+
+@api_router.get("/job-roles")
+async def get_job_roles(current_user: dict = Depends(get_current_user)):
+    if current_user['role'] != UserRole.DIRECTOR:
+        raise HTTPException(status_code=403, detail="Directors only")
+    roles = await db.job_roles.find({}, {"_id": 0}).sort("name", 1).to_list(100)
+    return roles
+
+@api_router.post("/job-roles")
+async def create_job_role(data: JobRoleCreate, current_user: dict = Depends(get_current_user)):
+    if current_user['role'] != UserRole.DIRECTOR:
+        raise HTTPException(status_code=403, detail="Directors only")
+    existing = await db.job_roles.find_one({"name": {"$regex": f"^{data.name}$", "$options": "i"}}, {"_id": 0})
+    if existing:
+        raise HTTPException(status_code=400, detail="Role name already exists")
+    role_doc = {
+        "id": str(uuid.uuid4()),
+        "name": data.name,
+        "description": data.description or "",
+        "permissions": data.permissions,
+        "created_by": current_user['user_id'],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.job_roles.insert_one(role_doc)
+    role_doc.pop("_id", None)
+    return role_doc
+
+@api_router.put("/job-roles/{role_id}")
+async def update_job_role(role_id: str, data: JobRoleUpdate, current_user: dict = Depends(get_current_user)):
+    if current_user['role'] != UserRole.DIRECTOR:
+        raise HTTPException(status_code=403, detail="Directors only")
+    updates = {k: v for k, v in data.model_dump().items() if v is not None}
+    updates["updated_at"] = datetime.now(timezone.utc).isoformat()
+    await db.job_roles.update_one({"id": role_id}, {"$set": updates})
+    updated = await db.job_roles.find_one({"id": role_id}, {"_id": 0})
+    if not updated:
+        raise HTTPException(status_code=404, detail="Role not found")
+    return updated
+
+@api_router.delete("/job-roles/{role_id}")
+async def delete_job_role(role_id: str, current_user: dict = Depends(get_current_user)):
+    if current_user['role'] != UserRole.DIRECTOR:
+        raise HTTPException(status_code=403, detail="Directors only")
+    result = await db.job_roles.delete_one({"id": role_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Role not found")
+    return {"message": "Role deleted"}
+
+@api_router.get("/job-roles/permissions")
+async def get_available_permissions(current_user: dict = Depends(get_current_user)):
+    if current_user['role'] != UserRole.DIRECTOR:
+        raise HTTPException(status_code=403, detail="Directors only")
+    return AVAILABLE_PERMISSIONS
+
+# ============================================================
+# INTER-COMPANY RECONCILIATION
+# ============================================================
+
+class ReconciliationCreate(BaseModel):
+    from_company_id: str
+    to_company_id: str
+    amount: float
+    description: str
+    reference: Optional[str] = ""
+
+@api_router.get("/reconciliation")
+async def get_reconciliations(status: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+    if current_user['role'] != UserRole.DIRECTOR:
+        raise HTTPException(status_code=403, detail="Directors only")
+    query = {}
+    if status and status != "all":
+        query["status"] = status
+    records = await db.reconciliations.find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return records
+
+@api_router.post("/reconciliation")
+async def create_reconciliation(data: ReconciliationCreate, current_user: dict = Depends(get_current_user)):
+    if current_user['role'] != UserRole.DIRECTOR:
+        raise HTTPException(status_code=403, detail="Directors only")
+    from_comp = await get_company(db, data.from_company_id)
+    to_comp = await get_company(db, data.to_company_id)
+    if not from_comp or not to_comp:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    rec = {
+        "id": str(uuid.uuid4()),
+        "from_company_id": data.from_company_id,
+        "from_company_name": from_comp["name"],
+        "to_company_id": data.to_company_id,
+        "to_company_name": to_comp["name"],
+        "amount": data.amount,
+        "description": data.description,
+        "reference": data.reference or "",
+        "status": "pending",  # pending, matched, disputed
+        "created_by": current_user['user_id'],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.reconciliations.insert_one(rec)
+    rec.pop("_id", None)
+    return rec
+
+@api_router.patch("/reconciliation/{rec_id}")
+async def update_reconciliation_status(rec_id: str, status: str, notes: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+    if current_user['role'] != UserRole.DIRECTOR:
+        raise HTTPException(status_code=403, detail="Directors only")
+    if status not in ("pending", "matched", "disputed"):
+        raise HTTPException(status_code=400, detail="Invalid status")
+    update = {"status": status, "updated_at": datetime.now(timezone.utc).isoformat(), "updated_by": current_user['user_id']}
+    if notes:
+        update["notes"] = notes
+    await db.reconciliations.update_one({"id": rec_id}, {"$set": update})
+    updated = await db.reconciliations.find_one({"id": rec_id}, {"_id": 0})
+    if not updated:
+        raise HTTPException(status_code=404, detail="Record not found")
+    return updated
+
+@api_router.delete("/reconciliation/{rec_id}")
+async def delete_reconciliation(rec_id: str, current_user: dict = Depends(get_current_user)):
+    if current_user['role'] != UserRole.DIRECTOR:
+        raise HTTPException(status_code=403, detail="Directors only")
+    result = await db.reconciliations.delete_one({"id": rec_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Record not found")
+    return {"message": "Reconciliation deleted"}
+
+# ============================================================
+# DIRECTOR EDIT-ALL: Update any entity
+# ============================================================
+
+@api_router.put("/director/journal-entries/{entry_id}")
+async def director_update_journal_entry(entry_id: str, req: JournalPostRequest, current_user: dict = Depends(get_current_user)):
+    """Director can update/correct any journal entry"""
+    if current_user['role'] != UserRole.DIRECTOR:
+        raise HTTPException(status_code=403, detail="Directors only")
+    existing = await db.journal_entries.find_one({"id": entry_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Journal entry not found")
+    # Update narration and log
+    await db.journal_entries.update_one({"id": entry_id}, {"$set": {
+        "narration": req.narration,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_by": current_user['user_id'],
+    }})
+    await log_audit("update", "journal_entry", entry_id, current_user['user_id'], old_data={"narration": existing.get("narration")}, new_data={"narration": req.narration})
+    updated = await db.journal_entries.find_one({"id": entry_id}, {"_id": 0})
+    return updated
+
+@api_router.delete("/director/journal-entries/{entry_id}")
+async def director_delete_journal_entry(entry_id: str, current_user: dict = Depends(get_current_user)):
+    """Director can delete any journal entry"""
+    if current_user['role'] != UserRole.DIRECTOR:
+        raise HTTPException(status_code=403, detail="Directors only")
+    result = await db.journal_entries.delete_one({"id": entry_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    await log_audit("delete", "journal_entry", entry_id, current_user['user_id'])
+    return {"message": "Journal entry deleted"}
 
 # Include router
 app.include_router(api_router)

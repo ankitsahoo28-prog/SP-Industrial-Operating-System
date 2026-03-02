@@ -149,15 +149,29 @@ export default function UsersPage() {
           <DialogTrigger asChild>
             <Button className="bg-accent hover:bg-accent/90" data-testid="add-user-button">
               <UserPlus size={18} className="mr-2" />
-              Add Manager
+              Add User
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>Add New Manager</DialogTitle>
-              <DialogDescription>Create a new manager account</DialogDescription>
+              <DialogTitle>Add New User</DialogTitle>
+              <DialogDescription>Create a new director, manager, or ground staff account</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="role">Role</Label>
+                <Select
+                  value={formData.role}
+                  onValueChange={(value) => setFormData({ ...formData, role: value })}
+                >
+                  <SelectTrigger data-testid="user-role-select"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="director">Director</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
+                    <SelectItem value="ground_staff">Ground Staff</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="name">Full Name</Label>
                 <Input
@@ -226,7 +240,7 @@ export default function UsersPage() {
               </div>
 
               <Button type="submit" className="w-full bg-accent hover:bg-accent/90" data-testid="create-user-submit">
-                Create Manager
+                Create {formData.role === 'director' ? 'Director' : formData.role === 'manager' ? 'Manager' : 'Ground Staff'}
               </Button>
             </form>
           </DialogContent>
