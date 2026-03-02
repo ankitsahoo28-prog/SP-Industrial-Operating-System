@@ -66,3 +66,16 @@ export const auditApi = {
 };
 
 export const deleteUser = (userId) => api.delete(`/users/${userId}`);
+
+// Double-Entry Bookkeeping APIs
+export const bookkeepingApi = {
+  analyzeTransaction: (statement) => api.post('/ai-accountant/analyze', { statement }),
+  postJournalEntry: (narration, lines) => api.post('/journal-entries', { narration, lines }),
+  getJournalEntries: () => api.get('/journal-entries'),
+  getAccounts: () => api.get('/accounts'),
+  getAccountLedger: (accountId) => api.get(`/account-ledger/${accountId}`),
+  getLedgerBalances: () => api.get('/ledger-balances'),
+  getTrialBalance: () => api.get('/reports/trial-balance'),
+  getProfitLoss: () => api.get('/reports/profit-loss'),
+  getBalanceSheet: () => api.get('/reports/balance-sheet'),
+};

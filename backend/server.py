@@ -20,6 +20,11 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
 # Import custom services
+from accounting_engine import (
+    seed_chart_of_accounts, create_journal_entry,
+    get_trial_balance, get_profit_and_loss, get_balance_sheet,
+    get_or_create_party_account
+)
 from email_service import send_task_assignment_email, send_indent_approval_email
 from ai_service import generate_business_insights, categorize_expense
 from i18n import get_translation
@@ -631,153 +636,200 @@ async def authorize_indent(
     return Indent(**updated_doc)
 
 
-# AI Accountant Routes
+# ============================================================
+# DOUBLE-ENTRY BOOKKEEPING SYSTEM
+# ============================================================
+
 class AiAccountantRequest(BaseModel):
     statement: str
 
-class AiAccountantConfirmRequest(BaseModel):
-    entries: List[Dict[str, Any]]
+class JournalPostRequest(BaseModel):
+    narration: str
+    lines: List[Dict[str, Any]]
 
+# --- Chart of Accounts ---
+@api_router.get("/accounts")
+async def get_accounts(current_user: dict = Depends(get_current_user)):
+    if current_user['role'] == UserRole.GROUND_STAFF:
+        raise HTTPException(status_code=403, detail="Access denied")
+    accounts = await db.accounts.find({}, {"_id": 0}).sort("code", 1).to_list(1000)
+    return accounts
+
+# --- AI Analyze ---
 @api_router.post("/ai-accountant/analyze")
 async def ai_accountant_analyze(req: AiAccountantRequest, current_user: dict = Depends(get_current_user)):
     if current_user['role'] == UserRole.GROUND_STAFF:
-        raise HTTPException(status_code=403, detail="Only managers and directors can use AI Accountant")
-    
+        raise HTTPException(status_code=403, detail="Access denied")
+
     from emergentintegrations.llm.chat import LlmChat, UserMessage
-    
+
     emergent_key = os.environ.get('EMERGENT_LLM_KEY')
-    
-    system_prompt = """You are an expert Indian Chartered Accountant and bookkeeping engine. 
-You convert natural language business transaction statements into complete accounting records following double-entry accounting principles.
+    accounts = await db.accounts.find({}, {"_id": 0, "name": 1, "type": 1, "code": 1}).to_list(1000)
+    account_list = ", ".join([f"{a['name']} ({a['type']})" for a in accounts])
 
-You MUST ALWAYS:
-1. Identify transaction type.
-2. Identify accounts affected.
-3. Determine Debit and Credit using accounting rules.
-4. Apply accrual accounting principles.
-5. Consider whether transaction is Cash or Credit.
-6. Apply GST/tax logic when applicable (Indian GST rates: 5%, 12%, 18%, 28%).
-7. Update inventory if goods are involved.
-8. Maintain accounting equation integrity: Assets = Liabilities + Equity.
+    system_prompt = f"""You are an expert Indian Chartered Accountant and double-entry bookkeeping engine.
+Convert natural language business transactions into structured journal entries.
 
-Follow Indian accounting practices. Keep entries balanced at all times. Use standard accounting heads unless user specifies custom ones. Currency is INR (₹).
+AVAILABLE ACCOUNTS: {account_list}
+If a party name (customer/vendor) appears that is not in the list, use their name as the account name and the system will auto-create it.
+
+RULES:
+1. Every entry MUST balance: Total Debit = Total Credit.
+2. Apply Indian accounting practices and GST when applicable (5%, 12%, 18%, 28%).
+3. Use "Cash" for cash payments, "Bank" for bank/cheque payments.
+4. For credit sales, debit the customer's name (Accounts Receivable). For credit purchases, credit the vendor's name (Accounts Payable).
+5. If information is missing (amount, party, purpose), set needs_clarification=true.
+6. Currency is INR.
 
 RESPOND IN THIS EXACT JSON FORMAT:
-{
-  "understanding": {
-    "transaction_type": "...",
-    "parties": "...",
+{{
+  "understanding": {{
+    "transaction_type": "sale|purchase|expense|receipt|payment|transfer",
+    "parties": "description of parties involved",
     "amount": 0,
     "payment_mode": "cash|bank|credit",
     "tax_applicable": true/false,
-    "tax_details": "..."
-  },
-  "journal_entries": [
-    {"account": "...", "type": "debit", "amount": 0},
-    {"account": "...", "type": "credit", "amount": 0}
+    "tax_details": "GST details if any"
+  }},
+  "journal_lines": [
+    {{"account_name": "Account Name", "debit": 0, "credit": 0}}
   ],
+  "narration": "Journal narration text",
   "ledger_impact": ["Account A - Debited ₹X", "Account B - Credited ₹X"],
-  "financial_impact": {
-    "pnl_effect": "...",
-    "balance_sheet_effect": "..."
-  },
-  "assumptions": ["..."],
-  "transactions_to_create": [
-    {
-      "transaction_type": "expense|income",
-      "payment_mode": "cash|bank",
-      "amount": 0,
-      "description": "...",
-      "category": "..."
-    }
-  ],
-
-CRITICAL: transactions_to_create must NEVER be empty when needs_clarification is false. Always include at least one entry representing the main financial flow. For salary payments, purchases, etc. use "expense". For sales, receipts use "income". If GST is involved, create separate entries for the base amount and tax (CGST+SGST or IGST) if applicable.
+  "financial_impact": {{
+    "pnl_effect": "Effect on Profit & Loss",
+    "balance_sheet_effect": "Effect on Balance Sheet"
+  }},
+  "assumptions": ["any assumptions made"],
   "needs_clarification": false,
   "clarification_question": ""
-}
+}}
 
-If information is missing and you cannot make reasonable assumptions, set needs_clarification=true and provide a clarification_question. Never guess silently."""
+CRITICAL: journal_lines must NEVER be empty when needs_clarification is false. Total debits MUST equal total credits."""
 
     try:
         chat = LlmChat(
             api_key=emergent_key,
-            session_id=f"ai-accountant-{current_user['user_id']}",
+            session_id=f"ai-accountant-{current_user['user_id']}-{uuid.uuid4().hex[:6]}",
             system_message=system_prompt
         ).with_model("openai", "gpt-4o-mini")
-        
-        user_message = UserMessage(text=f"Parse this business transaction: {req.statement}")
+
+        user_message = UserMessage(text=f"Parse this transaction: {req.statement}")
         response = await chat.send_message(user_message)
-        
-        # Try to parse JSON from response
+
         import json as json_lib
         import re
-        
-        # Extract JSON from response (handle markdown code blocks)
+
         json_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', response)
-        if json_match:
-            json_str = json_match.group(1).strip()
-        else:
-            json_str = response.strip()
-        
+        json_str = json_match.group(1).strip() if json_match else response.strip()
         parsed = json_lib.loads(json_str)
         return parsed
-        
-    except json_lib.JSONDecodeError:
-        # If JSON parsing fails, return the raw text as a fallback
+
+    except Exception as e:
+        logger.error(f"AI Accountant error: {str(e)}")
         return {
-            "understanding": {"transaction_type": "Unknown", "parties": "Unknown", "amount": 0, "payment_mode": "cash", "tax_applicable": False, "tax_details": ""},
-            "journal_entries": [],
+            "understanding": {"transaction_type": "Unknown", "parties": "", "amount": 0, "payment_mode": "cash", "tax_applicable": False, "tax_details": ""},
+            "journal_lines": [],
+            "narration": "",
             "ledger_impact": [],
             "financial_impact": {"pnl_effect": "Unable to determine", "balance_sheet_effect": "Unable to determine"},
             "assumptions": [],
-            "transactions_to_create": [],
             "needs_clarification": True,
-            "clarification_question": f"I couldn't parse the transaction. Raw analysis: {response[:500]}",
+            "clarification_question": f"Could not process. Please rephrase your transaction.",
         }
-    except Exception as e:
-        logger.error(f"AI Accountant error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"AI analysis failed: {str(e)}")
 
-@api_router.post("/ai-accountant/confirm")
-async def ai_accountant_confirm(req: AiAccountantConfirmRequest, current_user: dict = Depends(get_current_user)):
+# --- Post Journal Entry ---
+@api_router.post("/journal-entries")
+async def post_journal_entry(req: JournalPostRequest, current_user: dict = Depends(get_current_user)):
     if current_user['role'] == UserRole.GROUND_STAFF:
-        raise HTTPException(status_code=403, detail="Only managers and directors can post transactions")
-    
-    created = []
-    for entry in req.entries:
-        t_type = entry.get('transaction_type', 'expense')
-        p_mode = entry.get('payment_mode', 'cash')
-        
-        transaction_dict = {
-            'id': str(uuid.uuid4()),
-            'transaction_type': t_type,
-            'payment_mode': p_mode,
-            'amount': float(entry.get('amount', 0)),
-            'description': entry.get('description', ''),
-            'category': entry.get('category', 'Other'),
-            'created_by': current_user['user_id'],
-            'business_type': current_user.get('business_type'),
-            'date': datetime.now(timezone.utc).isoformat(),
-            'created_at': datetime.now(timezone.utc).isoformat(),
-        }
-        
-        await db.transactions.insert_one(transaction_dict)
-        created.append(transaction_dict)
-    
-    # Audit log
-    await db.audit_logs.insert_one({
-        'id': str(uuid.uuid4()),
-        'user_id': current_user['user_id'],
-        'action': 'create',
-        'entity_type': 'transaction',
-        'entity_id': 'ai-batch',
-        'old_data': None,
-        'new_data': {'count': len(created), 'source': 'AI Accountant'},
-        'timestamp': datetime.now(timezone.utc).isoformat(),
-    })
-    
-    return {"message": f"{len(created)} transaction(s) posted successfully", "transactions": created}
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    try:
+        entry = await create_journal_entry(
+            db, req.narration, req.lines,
+            current_user['user_id'],
+            current_user.get('business_type')
+        )
+        # Remove _id from response
+        entry.pop('_id', None)
+        for line in entry.get('lines', []):
+            line.pop('_id', None)
+        return {"message": "Journal entry posted successfully", "entry": entry}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+# --- Get Journal Entries ---
+@api_router.get("/journal-entries")
+async def get_journal_entries(current_user: dict = Depends(get_current_user)):
+    if current_user['role'] == UserRole.GROUND_STAFF:
+        raise HTTPException(status_code=403, detail="Access denied")
+    entries = await db.journal_entries.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return entries
+
+# --- Get Ledger for a specific account ---
+@api_router.get("/account-ledger/{account_id}")
+async def get_account_ledger(account_id: str, current_user: dict = Depends(get_current_user)):
+    if current_user['role'] == UserRole.GROUND_STAFF:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    account = await db.accounts.find_one({"id": account_id}, {"_id": 0})
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    entries = await db.journal_entries.find(
+        {"lines.account_id": account_id},
+        {"_id": 0}
+    ).sort("date", 1).to_list(1000)
+
+    ledger_rows = []
+    running_balance = 0
+    for entry in entries:
+        for line in entry.get("lines", []):
+            if line["account_id"] == account_id:
+                running_balance += line["debit"] - line["credit"]
+                ledger_rows.append({
+                    "date": entry["date"],
+                    "narration": entry["narration"],
+                    "debit": line["debit"],
+                    "credit": line["credit"],
+                    "balance": round(running_balance, 2),
+                    "journal_entry_id": entry["id"],
+                })
+
+    balance_doc = await db.ledger_balances.find_one({"account_id": account_id}, {"_id": 0})
+
+    return {
+        "account": account,
+        "transactions": ledger_rows,
+        "summary": balance_doc or {"total_debit": 0, "total_credit": 0, "balance": 0, "opening_balance": 0},
+    }
+
+# --- Ledger Balances (all) ---
+@api_router.get("/ledger-balances")
+async def get_ledger_balances(current_user: dict = Depends(get_current_user)):
+    if current_user['role'] == UserRole.GROUND_STAFF:
+        raise HTTPException(status_code=403, detail="Access denied")
+    balances = await db.ledger_balances.find({}, {"_id": 0}).to_list(1000)
+    return balances
+
+# --- Financial Reports ---
+@api_router.get("/reports/trial-balance")
+async def trial_balance_report(current_user: dict = Depends(get_current_user)):
+    if current_user['role'] == UserRole.GROUND_STAFF:
+        raise HTTPException(status_code=403, detail="Access denied")
+    return await get_trial_balance(db)
+
+@api_router.get("/reports/profit-loss")
+async def profit_loss_report(current_user: dict = Depends(get_current_user)):
+    if current_user['role'] == UserRole.GROUND_STAFF:
+        raise HTTPException(status_code=403, detail="Access denied")
+    return await get_profit_and_loss(db)
+
+@api_router.get("/reports/balance-sheet")
+async def balance_sheet_report(current_user: dict = Depends(get_current_user)):
+    if current_user['role'] == UserRole.GROUND_STAFF:
+        raise HTTPException(status_code=403, detail="Access denied")
+    return await get_balance_sheet(db)
 
 
 # Accounting Routes
@@ -1379,6 +1431,11 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+@app.on_event("startup")
+async def startup_seed():
+    await seed_chart_of_accounts(db)
+
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
