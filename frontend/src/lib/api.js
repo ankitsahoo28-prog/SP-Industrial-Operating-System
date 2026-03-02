@@ -57,6 +57,24 @@ export const inventoryApi = {
   getItems: () => api.get('/inventory'),
 };
 
+// New Comprehensive Inventory APIs
+export const invApi = {
+  getDashboard: () => api.get('/inv/dashboard'),
+  getItems: (params) => api.get('/inv/items', { params }),
+  createItem: (data) => api.post('/inv/items', data),
+  getCategories: () => api.get('/inv/categories'),
+  recordMovement: (data) => api.post('/inv/stock-movement', data),
+  getMovements: (params) => api.get('/inv/movements', { params }),
+  recordProduction: (data) => api.post('/inv/production', data),
+  getProductions: (params) => api.get('/inv/productions', { params }),
+  recordTransfer: (data) => api.post('/inv/transfer', data),
+  getTransfers: () => api.get('/inv/transfers'),
+  recordLidarScan: (data) => api.post('/inv/lidar-scan', data),
+  getLidarScans: (params) => api.get('/inv/lidar-scans', { params }),
+  getLowStock: (params) => api.get('/inv/low-stock', { params }),
+  getDipHistory: () => api.get('/inv/dip-history'),
+};
+
 export const dashboardApi = {
   getStats: () => api.get('/dashboard/stats'),
 };

@@ -12,7 +12,8 @@ import {
   LogOut,
   Menu,
   X,
-  History
+  History,
+  Warehouse
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -37,6 +38,7 @@ export const Layout = ({ children, role }) => {
         { icon: FileText, label: 'Reports', path: '/reports' },
         { icon: Package, label: 'Indents', path: '/indents' },
         { icon: DollarSign, label: 'Accounting', path: '/accounting' },
+        { icon: Warehouse, label: 'Inventory', path: '/inventory' },
         { icon: History, label: 'Audit Trail', path: '/audit-log' },
       ];
     } else if (role === 'manager') {
@@ -48,7 +50,7 @@ export const Layout = ({ children, role }) => {
         { icon: FileText, label: 'Reports', path: '/reports' },
         { icon: Package, label: 'Indents', path: '/indents' },
         { icon: DollarSign, label: 'Accounting', path: '/accounting' },
-        { icon: Package, label: 'Inventory', path: '/inventory' },
+        { icon: Warehouse, label: 'Inventory', path: '/inventory' },
       ];
     } else {
       return [

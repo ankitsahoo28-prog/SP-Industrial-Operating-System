@@ -25,6 +25,12 @@ from accounting_engine import (
     get_trial_balance, get_profit_and_loss, get_balance_sheet,
     get_or_create_party_account
 )
+from inventory_engine import (
+    seed_inventory_defaults, record_stock_movement, record_production,
+    record_transfer, lidar_scan_record, get_stock_register,
+    get_low_stock_alerts, get_inventory_dashboard, get_petrol_pump_dip_history,
+    BUSINESS_ITEM_CATEGORIES
+)
 from email_service import send_task_assignment_email, send_indent_approval_email
 from ai_service import generate_business_insights, categorize_expense
 from i18n import get_translation
@@ -646,6 +652,45 @@ class AiAccountantRequest(BaseModel):
 class JournalPostRequest(BaseModel):
     narration: str
     lines: List[Dict[str, Any]]
+
+# New Inventory Models
+class StockMovementRequest(BaseModel):
+    item_id: str
+    movement_type: str  # 'in' or 'out'
+    quantity: float
+    unit_price: float
+    reference_type: str  # purchase, sale, wastage, consumption, dip_reading, return
+    notes: Optional[str] = ""
+    batch_number: Optional[str] = None
+    party_name: Optional[str] = None
+
+class ProductionRequest(BaseModel):
+    input_item_id: str
+    input_qty: float
+    outputs: List[Dict[str, Any]]  # [{"item_id": str, "quantity": float, "unit_price": float}]
+    notes: Optional[str] = ""
+
+class TransferRequest(BaseModel):
+    from_business: str
+    to_business: str
+    item_name: str
+    quantity: float
+    notes: Optional[str] = ""
+
+class LidarScanRequest(BaseModel):
+    item_id: str
+    volume_m3: float
+    notes: Optional[str] = ""
+
+class InventoryItemCreateNew(BaseModel):
+    name: str
+    business_type: Optional[str] = None
+    category: str  # raw_materials, finished_goods, consumables, spare_parts
+    unit: str
+    min_stock_level: Optional[float] = 10
+    opening_stock: Optional[float] = 0
+    avg_cost: Optional[float] = 0
+    density: Optional[float] = None
 
 # --- Chart of Accounts ---
 @api_router.get("/accounts")
@@ -1373,6 +1418,222 @@ async def export_inventory_pdf(current_user: dict = Depends(get_current_user)):
 
 # Historical Trend Data
 @api_router.get("/dashboard/trends")
+
+# ============================================================
+# COMPREHENSIVE INVENTORY MANAGEMENT SYSTEM
+# ============================================================
+
+@api_router.get("/inv/dashboard")
+async def inventory_dashboard(current_user: dict = Depends(get_current_user)):
+    """Consolidated inventory dashboard for director"""
+    if current_user['role'] == UserRole.GROUND_STAFF:
+        raise HTTPException(status_code=403, detail="Access denied")
+    return await get_inventory_dashboard(db)
+
+@api_router.get("/inv/items")
+async def get_inventory_items(business_type: Optional[str] = None, category: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+    """Get all inventory items with optional filters"""
+    biz = business_type
+    if current_user['role'] != UserRole.DIRECTOR and current_user.get('business_type'):
+        biz = current_user['business_type']
+    query = {}
+    if biz and biz != 'all':
+        query['business_type'] = biz
+    if category and category != 'all':
+        query['category'] = category
+    items = await db.inventory_items.find(query, {"_id": 0}).sort("name", 1).to_list(5000)
+    return items
+
+@api_router.post("/inv/items")
+async def create_inventory_item_new(data: InventoryItemCreateNew, current_user: dict = Depends(get_current_user)):
+    """Create a new inventory item"""
+    if current_user['role'] == UserRole.GROUND_STAFF:
+        raise HTTPException(status_code=403, detail="Access denied")
+    item = {
+        "id": str(uuid.uuid4()),
+        "name": data.name,
+        "business_type": data.business_type or current_user.get('business_type'),
+        "category": data.category,
+        "unit": data.unit,
+        "current_stock": data.opening_stock or 0,
+        "min_stock_level": data.min_stock_level or 10,
+        "avg_cost": data.avg_cost or 0,
+        "total_value": (data.opening_stock or 0) * (data.avg_cost or 0),
+        "density": data.density,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.inventory_items.insert_one(item)
+    item.pop("_id", None)
+    return item
+
+@api_router.get("/inv/categories")
+async def get_inventory_categories(current_user: dict = Depends(get_current_user)):
+    """Get industry-specific categories"""
+    return BUSINESS_ITEM_CATEGORIES
+
+@api_router.post("/inv/stock-movement")
+async def api_stock_movement(data: StockMovementRequest, current_user: dict = Depends(get_current_user)):
+    """Record a stock movement (purchase/sale/wastage/etc) with optional auto journal entry"""
+    biz = current_user.get('business_type')
+    if current_user['role'] == UserRole.DIRECTOR:
+        item = await db.inventory_items.find_one({"id": data.item_id}, {"_id": 0})
+        if item:
+            biz = item.get("business_type", biz)
+
+    try:
+        movement = await record_stock_movement(
+            db, data.item_id, data.movement_type, data.quantity,
+            data.unit_price, data.reference_type, str(uuid.uuid4()),
+            current_user['user_id'], biz,
+            data.notes or "", data.batch_number, data.party_name
+        )
+        movement.pop("_id", None)
+
+        # Auto-create journal entry for purchases and sales
+        total = round(data.quantity * data.unit_price, 2)
+        if total > 0 and data.reference_type in ("purchase", "sale"):
+            try:
+                if data.reference_type == "purchase":
+                    lines = [
+                        {"account_name": "Inventory", "debit": total, "credit": 0},
+                        {"account_name": data.party_name or "Accounts Payable", "debit": 0, "credit": total},
+                    ]
+                    narration = f"Inventory purchase: {data.quantity} units @ ₹{data.unit_price}"
+                else:
+                    lines = [
+                        {"account_name": data.party_name or "Accounts Receivable", "debit": total, "credit": 0},
+                        {"account_name": "Sales", "debit": 0, "credit": total},
+                    ]
+                    narration = f"Inventory sale: {data.quantity} units @ ₹{data.unit_price}"
+                await create_journal_entry(db, narration, lines, current_user['user_id'], biz)
+            except Exception as e:
+                logger.error(f"Auto journal entry failed: {e}")
+
+        return movement
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@api_router.get("/inv/movements")
+async def get_stock_movements(business_type: Optional[str] = None, item_id: Optional[str] = None,
+                               reference_type: Optional[str] = None, limit: int = 200,
+                               current_user: dict = Depends(get_current_user)):
+    """Get stock movement history"""
+    query = {}
+    biz = business_type
+    if current_user['role'] != UserRole.DIRECTOR and current_user.get('business_type'):
+        biz = current_user['business_type']
+    if biz and biz != 'all':
+        query['business_type'] = biz
+    if item_id:
+        query['item_id'] = item_id
+    if reference_type and reference_type != 'all':
+        query['reference_type'] = reference_type
+    movements = await db.stock_movements.find(query, {"_id": 0}).sort("created_at", -1).to_list(limit)
+    return movements
+
+@api_router.post("/inv/production")
+async def api_production(data: ProductionRequest, current_user: dict = Depends(get_current_user)):
+    """Record a production batch (raw material -> finished goods)"""
+    if current_user['role'] == UserRole.GROUND_STAFF:
+        raise HTTPException(status_code=403, detail="Access denied")
+    biz = current_user.get('business_type')
+    if current_user['role'] == UserRole.DIRECTOR:
+        item = await db.inventory_items.find_one({"id": data.input_item_id}, {"_id": 0})
+        if item:
+            biz = item.get("business_type", biz)
+    try:
+        record = await record_production(
+            db, biz, current_user['user_id'],
+            data.input_item_id, data.input_qty, data.outputs, data.notes or ""
+        )
+        record.pop("_id", None)
+        return record
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@api_router.get("/inv/productions")
+async def get_productions(business_type: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+    """Get production batch history"""
+    query = {}
+    biz = business_type
+    if current_user['role'] != UserRole.DIRECTOR and current_user.get('business_type'):
+        biz = current_user['business_type']
+    if biz and biz != 'all':
+        query['business_type'] = biz
+    records = await db.production_batches.find(query, {"_id": 0}).sort("created_at", -1).to_list(200)
+    return records
+
+@api_router.post("/inv/transfer")
+async def api_transfer(data: TransferRequest, current_user: dict = Depends(get_current_user)):
+    """Transfer inventory between businesses"""
+    if current_user['role'] != UserRole.DIRECTOR:
+        raise HTTPException(status_code=403, detail="Only directors can transfer between businesses")
+    try:
+        record = await record_transfer(
+            db, data.from_business, data.to_business,
+            data.item_name, data.quantity, current_user['user_id'], data.notes or ""
+        )
+        record.pop("_id", None)
+        return record
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@api_router.get("/inv/transfers")
+async def get_transfers(current_user: dict = Depends(get_current_user)):
+    """Get transfer history"""
+    if current_user['role'] != UserRole.DIRECTOR:
+        raise HTTPException(status_code=403, detail="Only directors can view transfers")
+    records = await db.inventory_transfers.find({}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    return records
+
+@api_router.post("/inv/lidar-scan")
+async def api_lidar_scan(data: LidarScanRequest, current_user: dict = Depends(get_current_user)):
+    """Record a LiDAR scan and compare with system stock"""
+    biz = current_user.get('business_type')
+    if current_user['role'] == UserRole.DIRECTOR:
+        item = await db.inventory_items.find_one({"id": data.item_id}, {"_id": 0})
+        if item:
+            biz = item.get("business_type", biz)
+    try:
+        scan = await lidar_scan_record(
+            db, data.item_id, data.volume_m3,
+            current_user['user_id'], biz, data.notes or ""
+        )
+        scan.pop("_id", None)
+        return scan
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@api_router.get("/inv/lidar-scans")
+async def get_lidar_scans(business_type: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+    """Get LiDAR scan history"""
+    query = {}
+    biz = business_type
+    if current_user['role'] != UserRole.DIRECTOR and current_user.get('business_type'):
+        biz = current_user['business_type']
+    if biz and biz != 'all':
+        query['business_type'] = biz
+    scans = await db.lidar_scans.find(query, {"_id": 0}).sort("created_at", -1).to_list(200)
+    return scans
+
+@api_router.get("/inv/low-stock")
+async def api_low_stock(business_type: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+    """Get items below minimum stock level"""
+    biz = business_type
+    if current_user['role'] != UserRole.DIRECTOR and current_user.get('business_type'):
+        biz = current_user['business_type']
+    return await get_low_stock_alerts(db, biz)
+
+@api_router.get("/inv/dip-history")
+async def api_dip_history(current_user: dict = Depends(get_current_user)):
+    """Get petrol pump dip reading history"""
+    return await get_petrol_pump_dip_history(db)
+
+# ============================================================
+# END INVENTORY MANAGEMENT SYSTEM
+# ============================================================
+
+@api_router.get("/dashboard/trends")
 async def get_trends(current_user: dict = Depends(get_current_user)):
     if current_user['role'] != UserRole.DIRECTOR:
         raise HTTPException(status_code=403, detail="Only directors can view trends")
@@ -1435,6 +1696,7 @@ logger = logging.getLogger(__name__)
 @app.on_event("startup")
 async def startup_seed():
     await seed_chart_of_accounts(db)
+    await seed_inventory_defaults(db)
 
 
 @app.on_event("shutdown")
