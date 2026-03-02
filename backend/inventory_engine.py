@@ -295,35 +295,48 @@ async def get_low_stock_alerts(db: AsyncIOMotorDatabase, business_type: Optional
     return items
 
 
-async def get_inventory_dashboard(db: AsyncIOMotorDatabase):
+async def get_inventory_dashboard(db: AsyncIOMotorDatabase, company_id: Optional[str] = None):
     """Consolidated inventory dashboard for owner"""
-    pipeline = [
-        {"$group": {
-            "_id": "$business_type",
-            "total_items": {"$sum": 1},
-            "total_value": {"$sum": "$total_value"},
-            "total_stock": {"$sum": "$current_stock"},
-        }}
-    ]
+    match_filter = {}
+    if company_id:
+        match_filter["company_id"] = company_id
+    
+    pipeline = [{"$match": match_filter}] if match_filter else []
+    pipeline.append({"$group": {
+        "_id": "$business_type",
+        "total_items": {"$sum": 1},
+        "total_value": {"$sum": "$total_value"},
+        "total_stock": {"$sum": "$current_stock"},
+    }})
     biz_stats = await db.inventory_items.aggregate(pipeline).to_list(20)
 
     total_value = sum(b["total_value"] for b in biz_stats)
     total_items = sum(b["total_items"] for b in biz_stats)
 
-    low_stock = await db.inventory_items.count_documents(
-        {"$expr": {"$lt": ["$current_stock", "$min_stock_level"]}}
-    )
+    low_query = {"$expr": {"$lt": ["$current_stock", "$min_stock_level"]}}
+    if company_id:
+        low_query["company_id"] = company_id
+    low_stock = await db.inventory_items.count_documents(low_query)
 
     today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
-    today_movements = await db.stock_movements.count_documents({"created_at": {"$gte": today_start}})
+    move_query = {"created_at": {"$gte": today_start}}
+    if company_id:
+        move_query["company_id"] = company_id
+    today_movements = await db.stock_movements.count_documents(move_query)
 
+    sales_match = {"reference_type": "sale", "created_at": {"$gte": today_start}}
+    if company_id:
+        sales_match["company_id"] = company_id
     today_sales = await db.stock_movements.aggregate([
-        {"$match": {"reference_type": "sale", "created_at": {"$gte": today_start}}},
+        {"$match": sales_match},
         {"$group": {"_id": None, "total": {"$sum": "$total_amount"}}}
     ]).to_list(1)
     daily_sales = today_sales[0]["total"] if today_sales else 0
 
-    productions = await db.production_batches.count_documents({"created_at": {"$gte": today_start}})
+    prod_query = {"created_at": {"$gte": today_start}}
+    if company_id:
+        prod_query["company_id"] = company_id
+    productions = await db.production_batches.count_documents(prod_query)
 
     return {
         "total_stock_value": round(total_value, 2),

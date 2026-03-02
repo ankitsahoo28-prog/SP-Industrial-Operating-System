@@ -12,6 +12,7 @@ import { BusinessFilter } from '@/components/BusinessFilter';
 import AiInventoryAssistant from '@/components/AiInventoryAssistant';
 import LidarScanner from '@/components/LidarScanner';
 import { invApi } from '@/lib/api';
+import { useCompany } from '@/context/CompanyContext';
 import { toast } from 'sonner';
 import {
   Package, TrendingUp, TrendingDown, AlertTriangle, ArrowRightLeft,
@@ -38,13 +39,15 @@ export default function DirectorInventoryPage() {
   const [catFilter, setCatFilter] = useState('all');
   const [transferDialog, setTransferDialog] = useState(false);
   const [transferForm, setTransferForm] = useState({ from_business: '', to_business: '', item_name: '', quantity: '', notes: '' });
+  const { companyId } = useCompany();
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
     const params = bizFilter !== 'all' ? { business_type: bizFilter } : {};
+    if (companyId) params.company_id = companyId;
     try {
       const [dashRes, itemsRes, lowRes] = await Promise.all([
-        invApi.getDashboard(),
+        invApi.getDashboard(companyId ? { company_id: companyId } : undefined),
         invApi.getItems(params),
         invApi.getLowStock(params),
       ]);
@@ -56,15 +59,16 @@ export default function DirectorInventoryPage() {
     } finally {
       setLoading(false);
     }
-  }, [bizFilter]);
+  }, [bizFilter, companyId]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
   const fetchMovements = useCallback(async () => {
     const params = bizFilter !== 'all' ? { business_type: bizFilter } : {};
+    if (companyId) params.company_id = companyId;
     const res = await invApi.getMovements(params);
     setMovements(res.data);
-  }, [bizFilter]);
+  }, [bizFilter, companyId]);
 
   const fetchProductions = useCallback(async () => {
     const params = bizFilter !== 'all' ? { business_type: bizFilter } : {};

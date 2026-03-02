@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { bookkeepingApi, accountingApi } from '@/lib/api';
 import { BusinessFilter } from '@/components/BusinessFilter';
 import AiAccountant from '@/components/AiAccountant';
+import { useCompany } from '@/context/CompanyContext';
 import { toast } from 'sonner';
 import {
   DollarSign, TrendingUp, TrendingDown, Download, FileText,
@@ -24,29 +25,30 @@ export default function AccountingPage() {
   const [cashBalance, setCashBalance] = useState(0);
   const [profitSummary, setProfitSummary] = useState(0);
   const [loading, setLoading] = useState(false);
+  const { companyId } = useCompany();
 
   const fetchDashboardData = useCallback(async () => {
     try {
       const [pnlRes, bsRes] = await Promise.all([
-        bookkeepingApi.getProfitLoss(),
-        bookkeepingApi.getBalanceSheet(),
+        bookkeepingApi.getProfitLoss(companyId),
+        bookkeepingApi.getBalanceSheet(companyId),
       ]);
       setProfitSummary(pnlRes.data.net_profit || 0);
       const cashAcc = (bsRes.data.assets || []).find(a => a.name === 'Cash');
       const bankAcc = (bsRes.data.assets || []).find(a => a.name === 'Bank');
       setCashBalance((cashAcc?.amount || 0) + (bankAcc?.amount || 0));
     } catch {}
-  }, []);
+  }, [companyId]);
 
   useEffect(() => {
     fetchDashboardData();
-    bookkeepingApi.getAccounts().then(r => setAccounts(r.data)).catch(() => {});
-  }, [fetchDashboardData]);
+    bookkeepingApi.getAccounts(companyId).then(r => setAccounts(r.data)).catch(() => {});
+  }, [fetchDashboardData, companyId]);
 
   const fetchJournals = async () => {
     setLoading(true);
     try {
-      const res = await bookkeepingApi.getJournalEntries();
+      const res = await bookkeepingApi.getJournalEntries(companyId);
       setJournals(res.data);
     } catch { toast.error('Failed to load journals'); }
     finally { setLoading(false); }
@@ -56,7 +58,7 @@ export default function AccountingPage() {
     if (!accId) return;
     setLoading(true);
     try {
-      const res = await bookkeepingApi.getAccountLedger(accId);
+      const res = await bookkeepingApi.getAccountLedger(accId, companyId);
       setAccountLedger(res.data);
     } catch { toast.error('Failed to load ledger'); }
     finally { setLoading(false); }
@@ -66,15 +68,15 @@ export default function AccountingPage() {
     setLoading(true);
     try {
       if (type === 'trial' || !type) {
-        const res = await bookkeepingApi.getTrialBalance();
+        const res = await bookkeepingApi.getTrialBalance(companyId);
         setTrialBalance(res.data);
       }
       if (type === 'pnl' || !type) {
-        const res = await bookkeepingApi.getProfitLoss();
+        const res = await bookkeepingApi.getProfitLoss(companyId);
         setPnl(res.data);
       }
       if (type === 'bs' || !type) {
-        const res = await bookkeepingApi.getBalanceSheet();
+        const res = await bookkeepingApi.getBalanceSheet(companyId);
         setBalanceSheet(res.data);
       }
     } catch { toast.error('Failed to load reports'); }

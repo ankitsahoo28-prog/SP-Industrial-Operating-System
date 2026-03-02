@@ -59,7 +59,7 @@ export const inventoryApi = {
 
 // New Comprehensive Inventory APIs
 export const invApi = {
-  getDashboard: () => api.get('/inv/dashboard'),
+  getDashboard: (params) => api.get('/inv/dashboard', { params }),
   getItems: (params) => api.get('/inv/items', { params }),
   createItem: (data) => api.post('/inv/items', data),
   getCategories: () => api.get('/inv/categories'),
@@ -108,15 +108,31 @@ export const i18nApi = {
   getTranslations: (lang) => api.get(`/translations/${lang}`),
 };
 
-// Double-Entry Bookkeeping APIs
+// Double-Entry Bookkeeping APIs (company-scoped)
 export const bookkeepingApi = {
   analyzeTransaction: (statement) => api.post('/ai-accountant/analyze', { statement }),
-  postJournalEntry: (narration, lines) => api.post('/journal-entries', { narration, lines }),
-  getJournalEntries: () => api.get('/journal-entries'),
-  getAccounts: () => api.get('/accounts'),
-  getAccountLedger: (accountId) => api.get(`/account-ledger/${accountId}`),
-  getLedgerBalances: () => api.get('/ledger-balances'),
-  getTrialBalance: () => api.get('/reports/trial-balance'),
-  getProfitLoss: () => api.get('/reports/profit-loss'),
-  getBalanceSheet: () => api.get('/reports/balance-sheet'),
+  postJournalEntry: (narration, lines, company_id) => api.post('/journal-entries', { narration, lines }, { params: { company_id } }),
+  getJournalEntries: (company_id) => api.get('/journal-entries', { params: { company_id } }),
+  getAccounts: (company_id) => api.get('/accounts', { params: { company_id } }),
+  getAccountLedger: (accountId, company_id) => api.get(`/account-ledger/${accountId}`, { params: { company_id } }),
+  getLedgerBalances: (company_id) => api.get('/ledger-balances', { params: { company_id } }),
+  getTrialBalance: (company_id) => api.get('/reports/trial-balance', { params: { company_id } }),
+  getProfitLoss: (company_id) => api.get('/reports/profit-loss', { params: { company_id } }),
+  getBalanceSheet: (company_id) => api.get('/reports/balance-sheet', { params: { company_id } }),
+};
+
+// Company Management
+export const companyApi = {
+  getAll: (include_deleted) => api.get('/companies', { params: { include_deleted } }),
+  getMyCompanies: () => api.get('/companies/my-companies'),
+  create: (data) => api.post('/companies', data),
+  update: (id, data) => api.put(`/companies/${id}`, data),
+  remove: (id) => api.delete(`/companies/${id}`),
+  restore: (id) => api.post(`/companies/${id}/restore`),
+  activate: (id) => api.post(`/companies/${id}/activate`),
+  deactivate: (id) => api.post(`/companies/${id}/deactivate`),
+  assignUser: (user_id, company_id) => api.post('/companies/assign-user', { user_id, company_id }),
+  removeUser: (user_id, company_id) => api.post('/companies/remove-user', { user_id, company_id }),
+  getUsers: (company_id) => api.get(`/companies/${company_id}/users`),
+  getExecutiveReport: (params) => api.get('/director/executive-report', { params }),
 };

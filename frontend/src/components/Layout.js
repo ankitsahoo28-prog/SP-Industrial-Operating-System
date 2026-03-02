@@ -15,11 +15,14 @@ import {
   History,
   Warehouse,
   Settings,
-  Globe
+  Globe,
+  Building2,
+  BarChart3
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/context/I18nContext';
+import { CompanySelector } from '@/components/CompanySelector';
 
 export const Layout = ({ children, role }) => {
   const { user, logout } = useAuth();
@@ -36,6 +39,8 @@ export const Layout = ({ children, role }) => {
     if (role === 'director') {
       return [
         ...base,
+        { icon: Building2, label: 'Companies', path: '/companies' },
+        { icon: BarChart3, label: 'Executive', path: '/executive' },
         { icon: Users, label: t('users'), path: '/users' },
         { icon: ClipboardList, label: t('tasks'), path: '/tasks' },
         { icon: MapPin, label: t('tracking'), path: '/tracking' },
@@ -139,17 +144,15 @@ export const Layout = ({ children, role }) => {
 
       {/* Mobile Header */}
       <header className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-card border-b z-50 flex items-center justify-between px-4">
-        <div>
+        <div className="flex items-center gap-2">
           <h1 className="text-xl font-heading font-bold text-primary">Industrial OS</h1>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          data-testid="mobile-menu-toggle"
-        >
-          {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-        </Button>
+        <div className="flex items-center gap-2">
+          <CompanySelector />
+          <Button variant="ghost" size="sm" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} data-testid="mobile-menu-toggle">
+            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </Button>
+        </div>
       </header>
 
       {/* Mobile Menu */}
@@ -193,6 +196,9 @@ export const Layout = ({ children, role }) => {
 
       {/* Main Content */}
       <main className="lg:ml-64 min-h-screen pt-16 lg:pt-0">
+        <div className="hidden lg:flex items-center justify-end p-3 border-b bg-card/50">
+          <CompanySelector />
+        </div>
         <div className="p-4 md:p-8 lg:p-12">
           {children}
         </div>

@@ -6,6 +6,7 @@ import ManagerDashboard from '@/pages/ManagerDashboard';
 import GroundStaffDashboard from '@/pages/GroundStaffDashboard';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { I18nProvider } from '@/context/I18nContext';
+import { CompanyProvider } from '@/context/CompanyContext';
 import '@/index.css';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -51,6 +52,7 @@ function App() {
   return (
     <I18nProvider>
     <AuthProvider>
+    <CompanyProvider>
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
@@ -82,6 +84,7 @@ function App() {
         </Routes>
         <Toaster position="top-right" />
       </BrowserRouter>
+    </CompanyProvider>
     </AuthProvider>
     </I18nProvider>
   );
