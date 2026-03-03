@@ -1,73 +1,115 @@
-// Service Worker for offline functionality
-const CACHE_NAME = 'sp-industrial-v1';
-const urlsToCache = [
+const CACHE_VERSION = 'sp-industrial-v2';
+const STATIC_CACHE = `${CACHE_VERSION}-static`;
+const DYNAMIC_CACHE = `${CACHE_VERSION}-dynamic`;
+const API_CACHE = `${CACHE_VERSION}-api`;
+
+const STATIC_ASSETS = [
   '/',
-  '/static/css/main.css',
-  '/static/js/main.js',
+  '/index.html',
+  '/manifest.json',
   '/logo192.png',
-  '/manifest.json'
+  '/logo512.png',
+  '/sp-logo.png',
+  '/favicon.ico'
 ];
 
-// Install event - cache assets
+const API_CACHE_ROUTES = [
+  '/api/settings',
+  '/api/companies',
+  '/api/dashboard/stats',
+  '/api/tasks',
+  '/api/reports',
+  '/api/indents',
+  '/api/inventory',
+  '/api/inv/items',
+  '/api/notifications'
+];
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => {
-        console.log('Opened cache');
-        return cache.addAll(urlsToCache);
-      })
+    caches.open(STATIC_CACHE).then((cache) => {
+      return cache.addAll(STATIC_ASSETS).catch(() => {
+        console.log('Some static assets failed to cache, continuing...');
+      });
+    })
   );
+  self.skipWaiting();
 });
 
-// Fetch event - serve from cache, fallback to network
-self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
-        // Cache hit - return response
-        if (response) {
-          return response;
-        }
-
-        return fetch(event.request).then(
-          (response) => {
-            // Check if valid response
-            if (!response || response.status !== 200 || response.type !== 'basic') {
-              return response;
-            }
-
-            // Clone response
-            const responseToCache = response.clone();
-
-            caches.open(CACHE_NAME)
-              .then((cache) => {
-                cache.put(event.request, responseToCache);
-              });
-
-            return response;
-          }
-        );
-      })
-  );
-});
-
-// Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
-  const cacheWhitelist = [CACHE_NAME];
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
+    caches.keys().then((keys) => {
       return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheWhitelist.indexOf(cacheName) === -1) {
-            return caches.delete(cacheName);
-          }
-        })
+        keys.filter((key) => key !== STATIC_CACHE && key !== DYNAMIC_CACHE && key !== API_CACHE)
+            .map((key) => caches.delete(key))
       );
     })
   );
+  self.clients.claim();
 });
 
-// Background sync for offline actions
+self.addEventListener('fetch', (event) => {
+  const { request } = event;
+  const url = new URL(request.url);
+
+  if (request.method !== 'GET') {
+    event.respondWith(
+      fetch(request).catch(() => {
+        return new Response(JSON.stringify({ error: 'Offline', queued: true }),
+          { status: 503, headers: { 'Content-Type': 'application/json' } });
+      })
+    );
+    return;
+  }
+
+  if (url.pathname.startsWith('/api/')) {
+    event.respondWith(networkFirstStrategy(request));
+    return;
+  }
+
+  if (request.destination === 'document') {
+    event.respondWith(networkFirstStrategy(request));
+    return;
+  }
+
+  event.respondWith(cacheFirstStrategy(request));
+});
+
+async function networkFirstStrategy(request) {
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      const cache = await caches.open(request.url.includes('/api/') ? API_CACHE : DYNAMIC_CACHE);
+      cache.put(request, response.clone());
+    }
+    return response;
+  } catch (error) {
+    const cached = await caches.match(request);
+    if (cached) return cached;
+    if (request.destination === 'document') {
+      const fallback = await caches.match('/index.html');
+      if (fallback) return fallback;
+    }
+    return new Response(JSON.stringify({ error: 'Offline', cached: false }),
+      { status: 503, headers: { 'Content-Type': 'application/json' } });
+  }
+}
+
+async function cacheFirstStrategy(request) {
+  const cached = await caches.match(request);
+  if (cached) return cached;
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      const cache = await caches.open(DYNAMIC_CACHE);
+      cache.put(request, response.clone());
+    }
+    return response;
+  } catch (error) {
+    return new Response('', { status: 503 });
+  }
+}
+
 self.addEventListener('sync', (event) => {
   if (event.tag === 'sync-data') {
     event.waitUntil(syncData());
@@ -75,7 +117,14 @@ self.addEventListener('sync', (event) => {
 });
 
 async function syncData() {
-  // This will be called when connection is restored
-  console.log('Background sync triggered');
-  // The actual sync logic is handled in offlineDb.js
+  const clients = await self.clients.matchAll();
+  clients.forEach((client) => {
+    client.postMessage({ type: 'SYNC_REQUIRED' });
+  });
 }
+
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});

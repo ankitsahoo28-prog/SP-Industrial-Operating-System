@@ -167,3 +167,12 @@ export const reconciliationApi = {
   updateStatus: (id, status, notes) => api.patch(`/reconciliation/${id}`, null, { params: { status, notes } }),
   remove: (id) => api.delete(`/reconciliation/${id}`),
 };
+
+// In-app Notifications
+export const notificationApi = {
+  getAll: (limit = 50) => api.get('/notifications', { params: { limit } }),
+  getUnreadCount: () => api.get('/notifications/unread-count'),
+  markRead: (id) => api.patch(`/notifications/${id}/read`),
+  markAllRead: () => api.post('/notifications/mark-all-read'),
+  remove: (id) => api.delete(`/notifications/${id}`),
+};

@@ -26,6 +26,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/context/I18nContext';
 import { CompanySelector } from '@/components/CompanySelector';
+import NotificationBell from '@/components/NotificationBell';
 
 export const Layout = ({ children, role }) => {
   const { user, logout } = useAuth();
@@ -155,6 +156,7 @@ export const Layout = ({ children, role }) => {
         </div>
         <div className="flex items-center gap-2">
           <CompanySelector />
+          <NotificationBell />
           <Button variant="ghost" size="sm" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} data-testid="mobile-menu-toggle">
             {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </Button>
@@ -202,8 +204,9 @@ export const Layout = ({ children, role }) => {
 
       {/* Main Content */}
       <main className="lg:ml-64 min-h-screen pt-16 lg:pt-0">
-        <div className="hidden lg:flex items-center justify-end p-3 border-b bg-card/50">
+        <div className="hidden lg:flex items-center justify-end gap-3 p-3 border-b bg-card/50">
           <CompanySelector />
+          <NotificationBell />
         </div>
         <div className="p-4 md:p-8 lg:p-12">
           {children}

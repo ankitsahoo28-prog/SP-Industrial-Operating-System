@@ -18,6 +18,8 @@ const BIZ_TYPES = [
   { value: 'transport', label: 'Transport' },
   { value: 'slag_crushing', label: 'Slag Crushing' },
   { value: 'stone_crusher', label: 'Stone Crusher' },
+  { value: 'rice_mill', label: 'Rice Mill' },
+  { value: 'custom', label: '+ Custom Type...' },
 ];
 
 export default function CompanyManagement() {
@@ -30,6 +32,7 @@ export default function CompanyManagement() {
   const [selectedCompany, setSelectedCompany] = useState(null);
   const [companyUsers, setCompanyUsers] = useState([]);
   const [form, setForm] = useState({ name: '', business_type: 'petrol_pump', fy_start: 'April', gst_number: '', currency: 'INR' });
+  const [customBizType, setCustomBizType] = useState('');
   const [assignUserId, setAssignUserId] = useState('');
 
   const fetchCompanies = async () => {
@@ -43,10 +46,16 @@ export default function CompanyManagement() {
   const handleCreate = async (e) => {
     e.preventDefault();
     try {
-      await companyApi.create(form);
+      const submitData = { ...form };
+      if (form.business_type === 'custom') {
+        if (!customBizType.trim()) { toast.error('Please enter a custom business type'); return; }
+        submitData.business_type = customBizType.trim().toLowerCase().replace(/\s+/g, '_');
+      }
+      await companyApi.create(submitData);
       toast.success('Company created with Chart of Accounts');
       setCreateDialog(false);
       setForm({ name: '', business_type: 'petrol_pump', fy_start: 'April', gst_number: '', currency: 'INR' });
+      setCustomBizType('');
       fetchCompanies();
     } catch (err) { toast.error(err.response?.data?.detail || 'Failed'); }
   };
@@ -123,6 +132,16 @@ export default function CompanyManagement() {
                       <SelectTrigger data-testid="company-biz-type"><SelectValue /></SelectTrigger>
                       <SelectContent>{BIZ_TYPES.map(b => <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>)}</SelectContent>
                     </Select>
+                    {form.business_type === 'custom' && (
+                      <Input
+                        value={customBizType}
+                        onChange={e => setCustomBizType(e.target.value)}
+                        placeholder="Enter custom type (e.g. bakery)"
+                        className="mt-2"
+                        required
+                        data-testid="custom-biz-type-input"
+                      />
+                    )}
                   </div>
                   <div className="space-y-1">
                     <Label>FY Start</Label>

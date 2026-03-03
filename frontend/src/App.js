@@ -7,6 +7,9 @@ import GroundStaffDashboard from '@/pages/GroundStaffDashboard';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { I18nProvider } from '@/context/I18nContext';
 import { CompanyProvider } from '@/context/CompanyContext';
+import { PWAInstallBanner, OfflineIndicator, UpdateBanner } from '@/components/PWAComponents';
+import { useEffect } from 'react';
+import { registerServiceWorker, setupInstallPrompt } from '@/lib/serviceWorkerRegistration';
 import '@/index.css';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -49,11 +52,18 @@ const DashboardRouter = () => {
 };
 
 function App() {
+  useEffect(() => {
+    registerServiceWorker();
+    setupInstallPrompt();
+  }, []);
+
   return (
     <I18nProvider>
     <AuthProvider>
     <CompanyProvider>
       <BrowserRouter>
+        <OfflineIndicator />
+        <UpdateBanner />
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<DashboardRouter />} />
@@ -83,6 +93,7 @@ function App() {
           />
         </Routes>
         <Toaster position="top-right" />
+        <PWAInstallBanner />
       </BrowserRouter>
     </CompanyProvider>
     </AuthProvider>

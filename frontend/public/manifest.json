@@ -20,14 +20,16 @@
       "purpose": "any maskable"
     }
   ],
-  "start_url": ".",
+  "start_url": "/",
   "display": "standalone",
   "theme_color": "#0F172A",
-  "background_color": "#F1F5F9",
+  "background_color": "#0F172A",
   "orientation": "any",
   "scope": "/",
-  "description": "Complete business operations platform for industrial management",
+  "description": "Complete business operations platform for industrial management. Manage tasks, inventory, accounting, and teams across multiple companies.",
   "categories": ["business", "productivity", "utilities"],
+  "prefer_related_applications": false,
+  "screenshots": [],
   "shortcuts": [
     {
       "name": "Dashboard",
@@ -40,7 +42,14 @@
       "name": "Tasks",
       "short_name": "Tasks",
       "description": "View your tasks",
-      "url": "/tasks",
+      "url": "/director",
+      "icons": [{ "src": "/logo192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Accounting",
+      "short_name": "Accounting",
+      "description": "View accounting",
+      "url": "/director",
       "icons": [{ "src": "/logo192.png", "sizes": "192x192" }]
     }
   ]
