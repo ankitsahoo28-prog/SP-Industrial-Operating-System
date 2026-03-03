@@ -18,12 +18,14 @@ api.interceptors.request.use((config) => {
 export const userApi = {
   getUsers: () => api.get('/users'),
   createUser: (userData) => api.post('/users', userData),
+  getUserCompanies: (userId) => api.get(`/users/${userId}/companies`),
 };
 
 export const taskApi = {
   getTasks: (params) => api.get('/tasks', { params }),
   createTask: (taskData) => api.post('/tasks', taskData),
   updateTask: (taskId, updateData) => api.patch(`/tasks/${taskId}`, updateData),
+  deleteTask: (taskId) => api.delete(`/tasks/${taskId}`),
 };
 
 export const locationApi = {
@@ -34,12 +36,15 @@ export const locationApi = {
 export const reportApi = {
   createReport: (reportData) => api.post('/reports', reportData),
   getReports: (type, businessType) => api.get('/reports', { params: { report_type: type, business_type: businessType } }),
+  deleteReport: (reportId) => api.delete(`/reports/${reportId}`),
+  updateReport: (reportId, data) => api.put(`/reports/${reportId}`, data),
 };
 
 export const indentApi = {
   getIndents: (params) => api.get('/indents', { params }),
   createIndent: (indentData) => api.post('/indents', indentData),
   authorizeIndent: (indentId, authData) => api.patch(`/indents/${indentId}/authorize`, authData),
+  deleteIndent: (indentId) => api.delete(`/indents/${indentId}`),
 };
 
 export const accountingApi = {
@@ -132,6 +137,7 @@ export const companyApi = {
   activate: (id) => api.post(`/companies/${id}/activate`),
   deactivate: (id) => api.post(`/companies/${id}/deactivate`),
   assignUser: (user_id, company_id) => api.post('/companies/assign-user', { user_id, company_id }),
+  assignMultiple: (user_id, company_ids) => api.post('/companies/assign-multiple', { user_id, company_ids }),
   removeUser: (user_id, company_id) => api.post('/companies/remove-user', { user_id, company_id }),
   getUsers: (company_id) => api.get(`/companies/${company_id}/users`),
   getExecutiveReport: (params) => api.get('/director/executive-report', { params }),

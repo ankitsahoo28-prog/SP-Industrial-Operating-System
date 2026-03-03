@@ -37,7 +37,7 @@ from company_engine import (
     remove_user_from_company, get_user_companies, get_company_users,
     validate_company_access, seed_default_companies
 )
-from email_service import send_task_assignment_email, send_indent_approval_email
+from email_service import send_task_assignment_email, send_indent_approval_email, send_task_update_email, send_indent_update_email
 from ai_service import generate_business_insights, categorize_expense
 from i18n import get_translation
 from websocket_service import sio, notify_user
@@ -624,6 +624,45 @@ async def api_remove_user_from_company(data: CompanyUserAssign, current_user: di
     await remove_user_from_company(db, data.user_id, data.company_id)
     return {"message": "User removed from company"}
 
+
+class MultiCompanyAssign(BaseModel):
+    user_id: str
+    company_ids: List[str]
+
+
+@api_router.post("/companies/assign-multiple")
+async def api_assign_user_to_multiple_companies(data: MultiCompanyAssign, current_user: dict = Depends(get_current_user)):
+    """Assign a user to multiple companies at once, replacing existing assignments"""
+    if current_user['role'] != UserRole.DIRECTOR:
+        raise HTTPException(status_code=403, detail="Only directors can assign users to companies")
+    
+    # Remove all existing company assignments for this user
+    await db.company_users.delete_many({"user_id": data.user_id})
+    
+    # Assign to all new companies
+    for cid in data.company_ids:
+        company = await db.companies.find_one({"id": cid}, {"_id": 0})
+        if company:
+            await assign_user_to_company(db, data.user_id, cid, current_user['user_id'])
+    
+    await log_audit("assign_user_multi_company", "company_user", data.user_id, current_user['user_id'], new_data={"company_ids": data.company_ids})
+    return {"message": f"User assigned to {len(data.company_ids)} companies"}
+
+
+@api_router.get("/users/{user_id}/companies")
+async def api_get_user_companies(user_id: str, current_user: dict = Depends(get_current_user)):
+    """Get all companies a user is assigned to"""
+    if current_user['role'] not in (UserRole.DIRECTOR, UserRole.MANAGER):
+        raise HTTPException(status_code=403, detail="Access denied")
+    mappings = await db.company_users.find({"user_id": user_id}, {"_id": 0}).to_list(100)
+    company_ids = [m["company_id"] for m in mappings]
+    companies = []
+    for cid in company_ids:
+        comp = await db.companies.find_one({"id": cid, "status": "active"}, {"_id": 0})
+        if comp:
+            companies.append(comp)
+    return companies
+
 @api_router.get("/companies/{company_id}/users")
 async def api_get_company_users(company_id: str, current_user: dict = Depends(get_current_user)):
     await require_company_access(current_user['user_id'], current_user['role'], company_id)
@@ -787,14 +826,21 @@ async def create_user(user_data: UserCreate, current_user: dict = Depends(get_cu
     
     await db.users.insert_one(doc)
 
-    # Auto-assign user to matching company by business_type
-    if user_data.business_type and user_data.role != UserRole.DIRECTOR:
-        matching_company = await db.companies.find_one(
-            {"business_type": user_data.business_type, "status": "active"},
-            {"_id": 0, "id": 1}
-        )
-        if matching_company:
-            await assign_user_to_company(db, user.id, matching_company["id"], current_user['user_id'])
+    # Auto-assign user to companies
+    if user_data.role != UserRole.DIRECTOR:
+        if current_user['role'] == UserRole.MANAGER:
+            # Assign ground staff to ALL of manager's companies
+            manager_companies = await db.company_users.find({"user_id": current_user['user_id']}, {"_id": 0}).to_list(100)
+            for mc in manager_companies:
+                await assign_user_to_company(db, user.id, mc["company_id"], current_user['user_id'])
+        elif user_data.business_type:
+            # Director creating user: assign to matching company by business_type
+            matching_company = await db.companies.find_one(
+                {"business_type": user_data.business_type, "status": "active"},
+                {"_id": 0, "id": 1}
+            )
+            if matching_company:
+                await assign_user_to_company(db, user.id, matching_company["id"], current_user['user_id'])
 
     return user
 
@@ -803,19 +849,18 @@ async def create_user(user_data: UserCreate, current_user: dict = Depends(get_cu
 async def get_tasks(business_type: Optional[str] = None, company_id: Optional[str] = None, current_user: dict = Depends(get_current_user)):
     resolved_cid = await resolve_company_id(current_user['user_id'], current_user['role'], company_id)
     query = {}
-    
-    if resolved_cid:
-        await require_company_access(current_user['user_id'], current_user['role'], resolved_cid)
-        query['company_id'] = resolved_cid
 
     if current_user['role'] == UserRole.GROUND_STAFF:
+        # Ground staff: show tasks assigned to them regardless of company
         query['assigned_to'] = current_user['user_id']
     elif current_user['role'] == UserRole.MANAGER:
         team_ids = [doc['id'] for doc in await db.users.find({'manager_id': current_user['user_id']}, {'_id': 0, 'id': 1}).to_list(1000)]
         team_ids.append(current_user['user_id'])
         query['assigned_to'] = {'$in': team_ids}
     elif current_user['role'] == UserRole.DIRECTOR:
-        if business_type and business_type != 'all':
+        if resolved_cid:
+            query['company_id'] = resolved_cid
+        elif business_type and business_type != 'all':
             query['business_type'] = business_type
     
     tasks = await db.tasks.find(query, {'_id': 0}).to_list(1000)
@@ -883,7 +928,33 @@ async def update_task(task_id: str, update_data: TaskUpdate, current_user: dict 
         if updated_doc.get(field) and isinstance(updated_doc[field], str):
             updated_doc[field] = datetime.fromisoformat(updated_doc[field])
     
+    # Send notification to the task assigner about status change
+    try:
+        if 'status' in update_dict and task_doc.get('assigned_by'):
+            assigner = await db.users.find_one({'id': task_doc['assigned_by']}, {'_id': 0})
+            updater = await db.users.find_one({'id': current_user['user_id']}, {'_id': 0})
+            if assigner and assigner.get('email'):
+                await send_task_update_email(
+                    assigner['email'],
+                    task_doc.get('title', 'Task'),
+                    updater.get('name', 'User'),
+                    update_dict['status']
+                )
+    except Exception as e:
+        logger.error(f"Task update notification failed: {e}")
+
     return Task(**updated_doc)
+
+
+@api_router.delete("/tasks/{task_id}")
+async def delete_task(task_id: str, current_user: dict = Depends(get_current_user)):
+    if current_user['role'] != UserRole.DIRECTOR:
+        raise HTTPException(status_code=403, detail="Directors only")
+    result = await db.tasks.delete_one({'id': task_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Task not found")
+    await log_audit('delete', 'task', task_id, current_user['user_id'])
+    return {"message": "Task deleted"}
 
 # Location Routes
 @api_router.post("/locations", response_model=Location)
@@ -953,15 +1024,18 @@ async def get_reports(
     if report_type:
         query['type'] = report_type
     
-    if resolved_cid:
-        query['company_id'] = resolved_cid
-    elif current_user['role'] != UserRole.DIRECTOR and current_user.get('business_type'):
-        query['business_type'] = current_user['business_type']
-    elif current_user['role'] == UserRole.DIRECTOR and business_type and business_type != 'all':
-        query['business_type'] = business_type
-    
     if current_user['role'] == UserRole.GROUND_STAFF:
         query['user_id'] = current_user['user_id']
+    elif current_user['role'] == UserRole.MANAGER:
+        # Manager sees their own reports + all ground staff under them
+        team_ids = [doc['id'] for doc in await db.users.find({'manager_id': current_user['user_id']}, {'_id': 0, 'id': 1}).to_list(1000)]
+        team_ids.append(current_user['user_id'])
+        query['user_id'] = {'$in': team_ids}
+    elif current_user['role'] == UserRole.DIRECTOR:
+        if resolved_cid:
+            query['company_id'] = resolved_cid
+        elif business_type and business_type != 'all':
+            query['business_type'] = business_type
     
     reports = await db.reports.find(query, {'_id': 0}).sort('timestamp', -1).to_list(1000)
     
@@ -970,6 +1044,33 @@ async def get_reports(
             report['timestamp'] = datetime.fromisoformat(report['timestamp'])
     
     return reports
+
+
+@api_router.delete("/reports/{report_id}")
+async def delete_report(report_id: str, current_user: dict = Depends(get_current_user)):
+    if current_user['role'] != UserRole.DIRECTOR:
+        raise HTTPException(status_code=403, detail="Directors only")
+    result = await db.reports.delete_one({'id': report_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Report not found")
+    await log_audit('delete', 'report', report_id, current_user['user_id'])
+    return {"message": "Report deleted"}
+
+
+@api_router.put("/reports/{report_id}")
+async def update_report(report_id: str, report_data: ReportCreate, current_user: dict = Depends(get_current_user)):
+    if current_user['role'] != UserRole.DIRECTOR:
+        raise HTTPException(status_code=403, detail="Directors only")
+    existing = await db.reports.find_one({'id': report_id}, {'_id': 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Report not found")
+    update_fields = {"type": report_data.type.value, "data": report_data.data, "updated_at": datetime.now(timezone.utc).isoformat()}
+    await db.reports.update_one({'id': report_id}, {'$set': update_fields})
+    await log_audit('update', 'report', report_id, current_user['user_id'])
+    updated = await db.reports.find_one({'id': report_id}, {'_id': 0})
+    if isinstance(updated.get('timestamp'), str):
+        updated['timestamp'] = datetime.fromisoformat(updated['timestamp'])
+    return updated
 
 # Indent Routes
 @api_router.post("/indents", response_model=Indent)
@@ -1041,7 +1142,29 @@ async def authorize_indent(
     except Exception as e:
         logger.error(f"Failed to send indent notification email: {str(e)}")
     
+    # Also notify director if the indent was authorized by a manager
+    try:
+        if current_user['role'] == UserRole.MANAGER:
+            directors = await db.users.find({'role': UserRole.DIRECTOR, 'status': 'approved'}, {'_id': 0, 'email': 1, 'name': 1}).to_list(10)
+            updater = await db.users.find_one({'id': current_user['user_id']}, {'_id': 0})
+            for d in directors:
+                if d.get('email'):
+                    await send_indent_update_email(d['email'], indent_id, updater.get('name', 'Manager'), f"Indent {auth_data.status.value}")
+    except Exception as e:
+        logger.error(f"Failed to send indent director notification: {str(e)}")
+    
     return Indent(**updated_doc)
+
+
+@api_router.delete("/indents/{indent_id}")
+async def delete_indent(indent_id: str, current_user: dict = Depends(get_current_user)):
+    if current_user['role'] != UserRole.DIRECTOR:
+        raise HTTPException(status_code=403, detail="Directors only")
+    result = await db.indents.delete_one({'id': indent_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Indent not found")
+    await log_audit('delete', 'indent', indent_id, current_user['user_id'])
+    return {"message": "Indent deleted"}
 
 
 # ============================================================

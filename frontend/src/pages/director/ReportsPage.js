@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { reportApi } from '@/lib/api';
 import { BusinessFilter } from '@/components/BusinessFilter';
 import { toast } from 'sonner';
-import { FileText, Filter } from 'lucide-react';
+import { FileText, Filter, Trash2 } from 'lucide-react';
 
 export default function ReportsPage() {
   const [reports, setReports] = useState([]);
@@ -28,6 +29,15 @@ export default function ReportsPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Delete this report?')) return;
+    try {
+      await reportApi.deleteReport(id);
+      toast.success('Report deleted');
+      fetchReports();
+    } catch { toast.error('Failed to delete report'); }
   };
 
   const getReportTypeBadge = (type) => {
@@ -110,8 +120,9 @@ export default function ReportsPage() {
                   </div>
                 </div>
 
-                <div className="text-right">
+                <div className="text-right flex flex-col items-end gap-2">
                   <p className="text-xs text-muted-foreground">{new Date(report.timestamp).toLocaleString()}</p>
+                  <Button variant="ghost" size="sm" className="text-error hover:text-error" onClick={() => handleDelete(report.id)} data-testid={`delete-report-${report.id}`}><Trash2 size={14} /></Button>
                 </div>
               </div>
             </CardContent>

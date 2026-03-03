@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { indentApi } from '@/lib/api';
 import { BusinessFilter } from '@/components/BusinessFilter';
 import { toast } from 'sonner';
-import { Package, CheckCircle, XCircle } from 'lucide-react';
+import { Package, CheckCircle, XCircle, Trash2 } from 'lucide-react';
 
 export default function IndentsPage() {
   const [indents, setIndents] = useState([]);
@@ -32,11 +32,20 @@ export default function IndentsPage() {
   const handleAuthorize = async (indentId, status) => {
     try {
       await indentApi.authorizeIndent(indentId, { status, notes: '' });
-      toast.success(`Indent ${status}`);
+      toast.success(`Indent ${status}. Email notification sent.`);
       fetchIndents();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to authorize indent');
     }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Delete this indent?')) return;
+    try {
+      await indentApi.deleteIndent(id);
+      toast.success('Indent deleted');
+      fetchIndents();
+    } catch { toast.error('Failed to delete indent'); }
   };
 
   const getStatusBadge = (status) => {
@@ -117,6 +126,9 @@ export default function IndentsPage() {
                     </Button>
                   </div>
                 )}
+                <Button variant="ghost" size="sm" className="text-error hover:text-error self-start" onClick={() => handleDelete(indent.id)} data-testid={`delete-indent-${indent.id}`}>
+                  <Trash2 size={14} />
+                </Button>
               </div>
             </CardContent>
           </Card>

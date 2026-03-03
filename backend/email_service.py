@@ -66,3 +66,38 @@ async def send_indent_approval_email(to_email: str, indent_id: str, status: str,
     </div>
     """
     return await send_email_async(to_email, f"Indent {status_text.title()}", html)
+
+
+async def send_task_update_email(to_email: str, task_title: str, updated_by: str, new_status: str):
+    """Send task status update notification"""
+    status_colors = {"completed": "#10B981", "in_progress": "#3B82F6", "pending": "#F59E0B"}
+    color = status_colors.get(new_status, "#64748B")
+    
+    html = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #0F172A;">Task Status Updated</h2>
+        <div style="background: {color}20; padding: 15px; border-radius: 8px; border-left: 4px solid {color}; margin: 20px 0;">
+            <h3 style="margin: 0 0 10px 0;">{task_title}</h3>
+            <p style="margin: 0;"><strong>New Status:</strong> {new_status.replace('_', ' ').title()}</p>
+            <p style="margin: 5px 0 0 0;"><strong>Updated by:</strong> {updated_by}</p>
+        </div>
+        <p>Log in to the SP Industrial OS for full details.</p>
+        <p style="color: #64748B; font-size: 12px; margin-top: 30px;">This is an automated notification from SP Industrial Operating System.</p>
+    </div>
+    """
+    return await send_email_async(to_email, f"Task Update: {task_title} - {new_status.replace('_',' ').title()}", html)
+
+
+async def send_indent_update_email(to_email: str, indent_id: str, updated_by: str, action: str):
+    """Send indent update notification"""
+    html = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #0F172A;">Indent Update</h2>
+        <div style="background: #F1F5F9; padding: 15px; border-radius: 8px; margin: 20px 0;">
+            <p><strong>Action:</strong> {action}</p>
+            <p><strong>Updated by:</strong> {updated_by}</p>
+        </div>
+        <p>Log in to the SP Industrial OS for full details.</p>
+    </div>
+    """
+    return await send_email_async(to_email, f"Indent Update - {action}", html)

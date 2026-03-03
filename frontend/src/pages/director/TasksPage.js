@@ -1,191 +1,216 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import { taskApi, userApi } from '@/lib/api';
-import { BusinessFilter } from '@/components/BusinessFilter';
+import { useCompany } from '@/context/CompanyContext';
+import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
-import { Plus, Clock, CheckCircle2, AlertCircle, Calendar } from 'lucide-react';
+import { ClipboardList, Plus, CheckCircle2, Clock, AlertCircle, Trash2, Edit, Loader2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 export default function TasksPage() {
+  const { user } = useAuth();
+  const { companyId } = useCompany();
   const [tasks, setTasks] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [businessFilter, setBusinessFilter] = useState('all');
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    assigned_to: '',
-    deadline: '',
-  });
+  const [editingTask, setEditingTask] = useState(null);
+  const [formData, setFormData] = useState({ title: '', description: '', assigned_to: '', priority: 'medium', deadline: '' });
 
-  useEffect(() => {
-    fetchData();
-  }, [businessFilter]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
-      const params = {};
-      if (businessFilter !== 'all') params.business_type = businessFilter;
       const [tasksRes, usersRes] = await Promise.all([
-        taskApi.getTasks(params),
+        taskApi.getTasks({ company_id: companyId }),
         userApi.getUsers(),
       ]);
       setTasks(tasksRes.data);
       setUsers(usersRes.data);
-    } catch (error) {
-      console.error('Failed to fetch data:', error);
-      toast.error('Failed to load tasks');
-    } finally {
-      setLoading(false);
-    }
-  };
+    } catch { toast.error('Failed to fetch tasks'); }
+    finally { setLoading(false); }
+  }, [companyId]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const taskData = {
-        ...formData,
-        deadline: formData.deadline ? new Date(formData.deadline).toISOString() : null,
-      };
-      await taskApi.createTask(taskData);
-      toast.success('Task created successfully');
+      if (editingTask) {
+        await taskApi.updateTask(editingTask.id, formData);
+        toast.success('Task updated');
+      } else {
+        await taskApi.createTask({ ...formData, company_id: companyId });
+        toast.success('Task created');
+      }
       setDialogOpen(false);
-      setFormData({ title: '', description: '', assigned_to: '', deadline: '' });
+      resetForm();
       fetchData();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to create task');
+      toast.error(error.response?.data?.detail || 'Failed to save task');
     }
   };
 
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'completed': return <CheckCircle2 size={18} className="text-success" />;
-      case 'in_progress': return <Clock size={18} className="text-info" />;
-      case 'overdue': return <AlertCircle size={18} className="text-error" />;
-      default: return <Clock size={18} className="text-warning" />;
+  const handleStatusChange = async (taskId, newStatus) => {
+    try {
+      await taskApi.updateTask(taskId, { status: newStatus });
+      toast.success(`Status updated to ${newStatus.replace('_', ' ')}`);
+      fetchData();
+    } catch { toast.error('Failed to update status'); }
+  };
+
+  const handleDelete = async (taskId) => {
+    if (!window.confirm('Delete this task?')) return;
+    try {
+      await taskApi.deleteTask(taskId);
+      toast.success('Task deleted');
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to delete');
     }
+  };
+
+  const openEdit = (task) => {
+    setEditingTask(task);
+    setFormData({
+      title: task.title,
+      description: task.description || '',
+      assigned_to: task.assigned_to || '',
+      priority: task.priority || 'medium',
+      deadline: task.deadline ? new Date(task.deadline).toISOString().split('T')[0] : '',
+    });
+    setDialogOpen(true);
+  };
+
+  const resetForm = () => {
+    setEditingTask(null);
+    setFormData({ title: '', description: '', assigned_to: '', priority: 'medium', deadline: '' });
   };
 
   const getStatusBadge = (status) => {
-    const styles = {
-      completed: 'bg-success/20 text-success border-success/30',
-      in_progress: 'bg-info/20 text-info border-info/30',
-      overdue: 'bg-error/20 text-error border-error/30',
-      pending: 'bg-warning/20 text-warning border-warning/30',
-    };
-    return styles[status] || 'bg-gray-100 text-gray-700';
+    switch (status) {
+      case 'completed': return <Badge className="bg-green-100 text-green-700"><CheckCircle2 size={12} className="mr-1" />Completed</Badge>;
+      case 'in_progress': return <Badge className="bg-blue-100 text-blue-700"><Clock size={12} className="mr-1" />In Progress</Badge>;
+      default: return <Badge className="bg-yellow-100 text-yellow-700"><AlertCircle size={12} className="mr-1" />Pending</Badge>;
+    }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
+  const getPriorityBadge = (p) => {
+    switch (p) {
+      case 'high': return <Badge variant="destructive" className="text-xs">High</Badge>;
+      case 'low': return <Badge variant="outline" className="text-xs">Low</Badge>;
+      default: return <Badge variant="secondary" className="text-xs">Medium</Badge>;
+    }
+  };
+
+  const getUserName = (id) => users.find(u => u.id === id)?.name || 'Unknown';
+  const isDirector = user?.role === 'director';
+
+  if (loading) return <div className="flex items-center justify-center h-96"><Loader2 className="animate-spin h-12 w-12 text-primary" /></div>;
 
   return (
     <div className="space-y-6" data-testid="tasks-page">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-heading font-bold text-primary">Task Management</h1>
-          <p className="text-muted-foreground mt-1">Allocate and track tasks</p>
+          <h1 className="text-3xl font-heading font-bold text-primary flex items-center gap-2"><ClipboardList size={28} />Tasks</h1>
+          <p className="text-muted-foreground text-sm mt-1">{tasks.length} tasks total</p>
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <BusinessFilter value={businessFilter} onChange={setBusinessFilter} />
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-accent hover:bg-accent/90" data-testid="create-task-button">
-                <Plus size={18} className="mr-2" />
-                Create Task
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>Create New Task</DialogTitle>
-                <DialogDescription>Assign a task to a team member</DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
+        <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
+          <DialogTrigger asChild>
+            <Button className="bg-accent hover:bg-accent/90" data-testid="create-task-btn"><Plus size={16} className="mr-2" />New Task</Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>{editingTask ? 'Edit Task' : 'Create Task'}</DialogTitle>
+              <DialogDescription>An email notification will be sent to the assigned user.</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label>Title</Label>
+                <Input value={formData.title} onChange={e => setFormData(f => ({ ...f, title: e.target.value }))} required data-testid="task-title" />
+              </div>
+              <div className="space-y-2">
+                <Label>Description</Label>
+                <Textarea value={formData.description} onChange={e => setFormData(f => ({ ...f, description: e.target.value }))} rows={3} data-testid="task-desc" />
+              </div>
+              <div className="space-y-2">
+                <Label>Assign To</Label>
+                <Select value={formData.assigned_to} onValueChange={v => setFormData(f => ({ ...f, assigned_to: v }))}>
+                  <SelectTrigger data-testid="task-assign"><SelectValue placeholder="Select user" /></SelectTrigger>
+                  <SelectContent>{users.filter(u => u.role !== 'director').map(u => <SelectItem key={u.id} value={u.id}>{u.name} ({u.role})</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="title">Task Title</Label>
-                  <Input id="title" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} required data-testid="task-title-input" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea id="description" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} rows={3} data-testid="task-description-input" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="assigned_to">Assign To</Label>
-                  <Select value={formData.assigned_to} onValueChange={(value) => setFormData({ ...formData, assigned_to: value })} required>
-                    <SelectTrigger data-testid="task-assignee-select"><SelectValue placeholder="Select user" /></SelectTrigger>
+                  <Label>Priority</Label>
+                  <Select value={formData.priority} onValueChange={v => setFormData(f => ({ ...f, priority: v }))}>
+                    <SelectTrigger data-testid="task-priority"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {users.map((user) => (
-                        <SelectItem key={user.id} value={user.id}>{user.name} ({user.role.replace('_', ' ')})</SelectItem>
-                      ))}
+                      <SelectItem value="low">Low</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="deadline">Deadline (Optional)</Label>
-                  <Input id="deadline" type="datetime-local" value={formData.deadline} onChange={(e) => setFormData({ ...formData, deadline: e.target.value })} data-testid="task-deadline-input" />
+                  <Label>Deadline</Label>
+                  <Input type="date" value={formData.deadline} onChange={e => setFormData(f => ({ ...f, deadline: e.target.value }))} data-testid="task-deadline" />
                 </div>
-                <Button type="submit" className="w-full bg-accent hover:bg-accent/90" data-testid="task-submit-button">Create Task</Button>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
+              </div>
+              <Button type="submit" className="w-full" data-testid="task-submit">{editingTask ? 'Update Task' : 'Create Task'}</Button>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
 
-      <div className="space-y-4">
-        {tasks.map((task) => {
-          const assignedUser = users.find((u) => u.id === task.assigned_to);
-          return (
-            <Card key={task.id} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-6">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-start gap-3 mb-2">
-                      {getStatusIcon(task.status)}
-                      <div className="flex-1">
-                        <h3 className="font-heading font-semibold text-lg">{task.title}</h3>
-                        {task.description && <p className="text-sm text-muted-foreground mt-1">{task.description}</p>}
-                      </div>
+      {tasks.length === 0 ? (
+        <Card><CardContent className="p-12 text-center"><ClipboardList size={48} className="mx-auto text-muted-foreground mb-4" /><p className="text-muted-foreground">No tasks yet</p></CardContent></Card>
+      ) : (
+        <div className="space-y-3">
+          {tasks.map(task => (
+            <Card key={task.id} className="hover:shadow-sm transition-shadow" data-testid={`task-${task.id}`}>
+              <CardContent className="p-4">
+                <div className="flex flex-col sm:flex-row justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-semibold text-sm">{task.title}</h3>
+                      {getStatusBadge(task.status)}
+                      {getPriorityBadge(task.priority)}
                     </div>
-                    <div className="flex flex-wrap items-center gap-2 mt-3">
-                      <span className={`text-xs px-2 py-1 rounded border ${getStatusBadge(task.status)}`}>{task.status.replace('_', ' ')}</span>
-                      {assignedUser && (
-                        <span className="text-xs px-2 py-1 rounded bg-primary/10 text-primary border border-primary/20">{assignedUser.name}</span>
-                      )}
-                      {task.business_type && (
-                        <span className="text-xs px-2 py-1 rounded bg-secondary text-foreground capitalize">{task.business_type.replace('_', ' ')}</span>
-                      )}
-                      {task.deadline && (
-                        <span className="text-xs px-2 py-1 rounded bg-secondary text-foreground flex items-center gap-1">
-                          <Calendar size={12} />{new Date(task.deadline).toLocaleDateString()}
-                        </span>
-                      )}
+                    {task.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{task.description}</p>}
+                    <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
+                      <span>Assigned: {getUserName(task.assigned_to)}</span>
+                      {task.deadline && <span>Due: {new Date(task.deadline).toLocaleDateString()}</span>}
                     </div>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {/* Status change buttons */}
+                    {task.status !== 'completed' && (
+                      <Select value={task.status} onValueChange={(v) => handleStatusChange(task.id, v)}>
+                        <SelectTrigger className="w-[120px] h-8 text-xs" data-testid={`status-${task.id}`}><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="in_progress">In Progress</SelectItem>
+                          <SelectItem value="completed">Completed</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                    {isDirector && (
+                      <>
+                        <Button variant="ghost" size="sm" onClick={() => openEdit(task)} data-testid={`edit-task-${task.id}`}><Edit size={14} /></Button>
+                        <Button variant="ghost" size="sm" className="text-error" onClick={() => handleDelete(task.id)} data-testid={`delete-task-${task.id}`}><Trash2 size={14} /></Button>
+                      </>
+                    )}
                   </div>
                 </div>
               </CardContent>
             </Card>
-          );
-        })}
-      </div>
-
-      {tasks.length === 0 && (
-        <Card>
-          <CardContent className="p-12 text-center">
-            <Clock size={48} className="mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">No tasks found{businessFilter !== 'all' ? ' for this business' : ''}. Create your first task to get started.</p>
-          </CardContent>
-        </Card>
+          ))}
+        </div>
       )}
     </div>
   );
