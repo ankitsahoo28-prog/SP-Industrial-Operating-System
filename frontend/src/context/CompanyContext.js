@@ -20,11 +20,24 @@ export function CompanyProvider({ children }) {
     try {
       const res = await api.get('/companies/my-companies');
       setCompanies(res.data);
-      // Restore from localStorage or pick first
+      // Directors default to "All Companies" (null), others pick first
       const stored = localStorage.getItem('sp_company_id');
-      const found = res.data.find(c => c.id === stored);
-      if (found) {
-        setSelectedCompany(found);
+      if (stored === 'all' && user.role === 'director') {
+        setSelectedCompany(null);
+      } else if (stored && stored !== 'all') {
+        const found = res.data.find(c => c.id === stored);
+        if (found) {
+          setSelectedCompany(found);
+        } else if (user.role === 'director') {
+          setSelectedCompany(null);
+        } else if (res.data.length > 0) {
+          setSelectedCompany(res.data[0]);
+          localStorage.setItem('sp_company_id', res.data[0].id);
+        }
+      } else if (user.role === 'director') {
+        // Director defaults to "All Companies"
+        setSelectedCompany(null);
+        localStorage.setItem('sp_company_id', 'all');
       } else if (res.data.length > 0) {
         setSelectedCompany(res.data[0]);
         localStorage.setItem('sp_company_id', res.data[0].id);
@@ -45,7 +58,7 @@ export function CompanyProvider({ children }) {
     if (company) {
       localStorage.setItem('sp_company_id', company.id);
     } else {
-      localStorage.removeItem('sp_company_id');
+      localStorage.setItem('sp_company_id', 'all');
     }
   };
 

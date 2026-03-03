@@ -1,0 +1,70 @@
+{
+  "summary": "Comprehensive testing of Multi-Company SP ERP - Company scoping and data isolation fixes. Backend: 28/28 tests PASSED (100%). Frontend: All director and manager pages verified. Key fix validated: Director sees All Companies with aggregated data (P&L ₹3,25,625), Manager sees only FL Shop with scoped data (P&L ₹2,600).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "WebSocket", "issues": ["WebSocket connection fails but app continues to work - non-blocking"]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_company_scoping.py",
+    "/app/test_reports/pytest/company_scoping_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Company scoping working correctly - Director defaults to 'All Companies', Manager defaults to assigned company",
+    "Data isolation verified: Director P&L ₹3,25,625 vs Manager P&L ₹2,600",
+    "Manager nav correctly hides director-only items (Daily Summary, Executive, Companies, Users, Roles, Reconciliation)",
+    "resolve_company_id function properly auto-scopes non-directors to their assigned company",
+    "All CRUD endpoints (tasks, reports, indents, transactions, journal-entries) correctly use company_id filtering"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_company_scoping.py"
+  ],
+  "success_rate": {
+    "backend": "100% (28/28 passed)",
+    "frontend": "100%"
+  },
+  "test_credentials": {
+    "director": "director@sp.com / password123",
+    "manager": "manager@sp.com / password123"
+  },
+  "seed_data_creation": "Created TEST_Manager_Entry_Scoping_Test journal entry during testing",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All company scoping fixes verified. Director sees aggregated data across all 7 companies with 'All Companies' selector. Manager sees only SP FL Shop data. Key data points: Director P&L ₹3,25,625 (343 accounts), Manager P&L ₹2,600 (21 accounts). Manager correctly cannot access director-only pages (Daily Summary, Executive, Companies, Users, Roles, Reconciliation). All pages load correctly for both roles.",
+  "verified_features": {
+    "company_scoping": {
+      "director_all_companies_default": "PASS - Director sees 'All Companies' in company selector header",
+      "director_can_filter": "PASS - Director can select specific company (e.g., SP FL Shop)",
+      "manager_scoped_to_fl_shop": "PASS - Manager sees only 'SP FL Shop' in company selector"
+    },
+    "data_isolation": {
+      "journal_entries": "PASS - Director: 23 entries, Manager: 2 entries",
+      "profit_loss": "PASS - Director: ₹3,25,625, Manager: ₹2,600",
+      "transactions": "PASS - Director: 9, Manager: scoped to company",
+      "inventory": "PASS - Director: ₹2,66,282 total value, Manager: scoped",
+      "tasks": "PASS - Both can see/create tasks scoped to their access",
+      "reports": "PASS - Scoped correctly",
+      "indents": "PASS - Scoped correctly"
+    },
+    "access_control": {
+      "director_nav_items": ["Dashboard", "Daily Summary", "Companies", "Executive", "Users", "Tasks", "Tracking", "Reports", "Indents", "Accounting", "Inventory", "Reconciliation", "Roles", "Audit Trail", "Settings"],
+      "manager_nav_items": ["Dashboard", "My Team", "Tasks", "Tracking", "Reports", "Indents", "Accounting", "Inventory"],
+      "manager_restricted_endpoints": "PASS - 403 returned for director-only endpoints"
+    },
+    "pages_tested": {
+      "director": ["Dashboard", "Daily Summary", "Companies", "Executive", "Users", "Tasks", "Accounting", "Inventory", "Reconciliation", "Roles", "Audit Trail", "Settings"],
+      "manager": ["Dashboard", "Accounting", "Inventory", "Tasks", "Reports", "Indents"]
+    }
+  },
+  "mocked_apis": {
+    "has_mocked_apis": false,
+    "mocked_apis_list": []
+  }
+}

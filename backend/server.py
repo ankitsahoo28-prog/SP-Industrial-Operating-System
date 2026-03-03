@@ -894,7 +894,8 @@ async def get_user_locations(user_id: str, current_user: dict = Depends(get_curr
 
 # Report Routes
 @api_router.post("/reports", response_model=Report)
-async def create_report(report_data: ReportCreate, current_user: dict = Depends(get_current_user)):
+async def create_report(report_data: ReportCreate, company_id: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+    resolved_cid = await resolve_company_id(current_user['user_id'], current_user['role'], company_id)
     report_dict = report_data.model_dump()
     report_dict['user_id'] = current_user['user_id']
     if not report_dict.get('business_type'):
@@ -903,6 +904,7 @@ async def create_report(report_data: ReportCreate, current_user: dict = Depends(
     
     doc = report.model_dump()
     doc['timestamp'] = doc['timestamp'].isoformat()
+    doc['company_id'] = resolved_cid
     
     await db.reports.insert_one(doc)
     
@@ -924,14 +926,17 @@ async def create_report(report_data: ReportCreate, current_user: dict = Depends(
 async def get_reports(
     report_type: Optional[ReportType] = None,
     business_type: Optional[str] = None,
+    company_id: Optional[str] = None,
     current_user: dict = Depends(get_current_user)
 ):
+    resolved_cid = await resolve_company_id(current_user['user_id'], current_user['role'], company_id)
     query = {}
     if report_type:
         query['type'] = report_type
     
-    # Filter by business type for non-directors
-    if current_user['role'] != UserRole.DIRECTOR and current_user.get('business_type'):
+    if resolved_cid:
+        query['company_id'] = resolved_cid
+    elif current_user['role'] != UserRole.DIRECTOR and current_user.get('business_type'):
         query['business_type'] = current_user['business_type']
     elif current_user['role'] == UserRole.DIRECTOR and business_type and business_type != 'all':
         query['business_type'] = business_type
@@ -949,10 +954,11 @@ async def get_reports(
 
 # Indent Routes
 @api_router.post("/indents", response_model=Indent)
-async def create_indent(indent_data: IndentCreate, current_user: dict = Depends(get_current_user)):
+async def create_indent(indent_data: IndentCreate, company_id: Optional[str] = None, current_user: dict = Depends(get_current_user)):
     if current_user['role'] == UserRole.GROUND_STAFF:
         raise HTTPException(status_code=403, detail="Only managers can create indents")
     
+    resolved_cid = await resolve_company_id(current_user['user_id'], current_user['role'], company_id)
     indent_dict = indent_data.model_dump()
     indent_dict['requested_by'] = current_user['user_id']
     indent_dict['business_type'] = current_user.get('business_type')
@@ -960,15 +966,19 @@ async def create_indent(indent_data: IndentCreate, current_user: dict = Depends(
     
     doc = indent.model_dump()
     doc['created_at'] = doc['created_at'].isoformat()
+    doc['company_id'] = resolved_cid
     
     await db.indents.insert_one(doc)
     return indent
 
 @api_router.get("/indents", response_model=List[Indent])
-async def get_indents(business_type: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+async def get_indents(business_type: Optional[str] = None, company_id: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+    resolved_cid = await resolve_company_id(current_user['user_id'], current_user['role'], company_id)
     query = {}
     
-    if current_user['role'] == UserRole.MANAGER:
+    if resolved_cid:
+        query['company_id'] = resolved_cid
+    elif current_user['role'] == UserRole.MANAGER:
         query['requested_by'] = current_user['user_id']
     elif current_user['role'] == UserRole.DIRECTOR and business_type and business_type != 'all':
         query['business_type'] = business_type
@@ -1278,9 +1288,11 @@ async def balance_sheet_report(company_id: Optional[str] = None, current_user: d
 
 # Accounting Routes
 @api_router.post("/transactions", response_model=Transaction)
-async def create_transaction(transaction_data: TransactionCreate, current_user: dict = Depends(get_current_user)):
+async def create_transaction(transaction_data: TransactionCreate, company_id: Optional[str] = None, current_user: dict = Depends(get_current_user)):
     if current_user['role'] == UserRole.GROUND_STAFF:
         raise HTTPException(status_code=403, detail="Only managers and directors can create transactions")
+    
+    resolved_cid = await resolve_company_id(current_user['user_id'], current_user['role'], company_id)
     
     transaction_dict = transaction_data.model_dump()
     transaction_dict['created_by'] = current_user['user_id']
@@ -1294,16 +1306,19 @@ async def create_transaction(transaction_data: TransactionCreate, current_user: 
     doc = transaction.model_dump()
     doc['date'] = doc['date'].isoformat()
     doc['created_at'] = doc['created_at'].isoformat()
+    doc['company_id'] = resolved_cid
     
     await db.transactions.insert_one(doc)
     return transaction
 
 @api_router.get("/transactions", response_model=List[Transaction])
-async def get_transactions(business_type: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+async def get_transactions(business_type: Optional[str] = None, company_id: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+    resolved_cid = await resolve_company_id(current_user['user_id'], current_user['role'], company_id)
     query = {}
     
-    # Filter by business type for non-directors
-    if current_user['role'] != UserRole.DIRECTOR and current_user.get('business_type'):
+    if resolved_cid:
+        query['company_id'] = resolved_cid
+    elif current_user['role'] != UserRole.DIRECTOR and current_user.get('business_type'):
         query['business_type'] = current_user['business_type']
     elif current_user['role'] == UserRole.DIRECTOR and business_type and business_type != 'all':
         query['business_type'] = business_type
@@ -1319,9 +1334,12 @@ async def get_transactions(business_type: Optional[str] = None, current_user: di
     return transactions
 
 @api_router.get("/ledger")
-async def get_ledger(business_type: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+async def get_ledger(business_type: Optional[str] = None, company_id: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+    resolved_cid = await resolve_company_id(current_user['user_id'], current_user['role'], company_id)
     query = {}
-    if current_user['role'] != UserRole.DIRECTOR and current_user.get('business_type'):
+    if resolved_cid:
+        query['company_id'] = resolved_cid
+    elif current_user['role'] != UserRole.DIRECTOR and current_user.get('business_type'):
         query['business_type'] = current_user['business_type']
     elif current_user['role'] == UserRole.DIRECTOR and business_type and business_type != 'all':
         query['business_type'] = business_type
@@ -1886,10 +1904,11 @@ async def get_stock_movements(business_type: Optional[str] = None, item_id: Opti
                                reference_type: Optional[str] = None, company_id: Optional[str] = None, limit: int = 200,
                                current_user: dict = Depends(get_current_user)):
     """Get stock movement history"""
+    resolved_cid = await resolve_company_id(current_user['user_id'], current_user['role'], company_id)
     query = {}
-    if company_id:
-        await require_company_access(current_user['user_id'], current_user['role'], company_id)
-        query['company_id'] = company_id
+    if resolved_cid:
+        await require_company_access(current_user['user_id'], current_user['role'], resolved_cid)
+        query['company_id'] = resolved_cid
     if item_id:
         query['item_id'] = item_id
     if reference_type and reference_type != 'all':
@@ -1983,8 +2002,13 @@ async def get_lidar_scans(business_type: Optional[str] = None, current_user: dic
     return scans
 
 @api_router.get("/inv/low-stock")
-async def api_low_stock(business_type: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+async def api_low_stock(business_type: Optional[str] = None, company_id: Optional[str] = None, current_user: dict = Depends(get_current_user)):
     """Get items below minimum stock level"""
+    resolved_cid = await resolve_company_id(current_user['user_id'], current_user['role'], company_id)
+    if resolved_cid:
+        # Filter by company_id
+        items = await db.inventory_items.find({"company_id": resolved_cid}, {"_id": 0}).to_list(5000)
+        return [i for i in items if i.get("current_stock", 0) < i.get("min_stock_level", 10)]
     biz = business_type
     if current_user['role'] != UserRole.DIRECTOR and current_user.get('business_type'):
         biz = current_user['business_type']
