@@ -29,31 +29,24 @@ Multi-business ERP application "SP" for managing multiple companies (Petrol Pump
 - [x] LiDAR scanner with camera integration
 - [x] Low stock alerts, stock register
 
-### Director Features (March 2026)
+### Director Features
 - [x] Daily Summary - cross-company daily activity overview
 - [x] Executive Report - cross-company performance dashboard
 - [x] Director Creation - directors can create other directors
 - [x] Director Edit-All - universal edit/delete on journal entries and tasks
 - [x] Role Management - custom job roles with granular permissions
 - [x] Inter-Company Reconciliation - match/dispute transactions between companies
+- [x] Change User Passwords - directors can reset any user's password from Users page
 
 ### Bug Fixes (March 2026)
 - [x] Manager Permissions - auto-assign to company on creation + resolve_company_id
-- [x] Data Isolation - ALL endpoints (accounting, inventory, tasks, reports, indents, transactions) filter by company_id
+- [x] Data Isolation - ALL endpoints filter by company_id
 - [x] Director Dashboard - aggregates all company data correctly
-- [x] Company Selector - "All Companies" default for directors, scoped for managers
-
-### Test Results
-- Backend: 28/28 (100%)
-- Frontend: 100%
-- Data isolation verified: Director P&L ₹3,25,625 vs Manager P&L ₹2,600
-
-## Prioritized Backlog
-- P2: Native Android/iOS app
-- P2: True AI predictive analytics
-- P2: Full PWA offline sync
-- P2: Geolocation tracking
+- [x] Company Selector - "All Companies" default for directors
 
 ## Credentials
 - Director: director@sp.com / password123
 - Manager: manager@sp.com / password123
+
+## Backlog
+- P2: Native Android/iOS app, AI predictive analytics, PWA offline sync, geolocation tracking

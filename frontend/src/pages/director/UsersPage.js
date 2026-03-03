@@ -5,9 +5,9 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { userApi, deleteUser, authApi } from '@/lib/api';
+import { userApi, deleteUser, authApi, directorApi } from '@/lib/api';
 import { toast } from 'sonner';
-import { UserPlus, Mail, Phone, Briefcase, Shield, Trash2, CheckCircle2, XCircle, Clock } from 'lucide-react';
+import { UserPlus, Mail, Phone, Briefcase, Shield, Trash2, CheckCircle2, XCircle, Clock, KeyRound } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 export default function UsersPage() {
@@ -17,6 +17,9 @@ export default function UsersPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
+  const [pwDialogOpen, setPwDialogOpen] = useState(false);
+  const [pwUser, setPwUser] = useState(null);
+  const [newPassword, setNewPassword] = useState('');
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -100,6 +103,23 @@ export default function UsersPage() {
       fetchUsers();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to delete user');
+    }
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    if (!pwUser || !newPassword || newPassword.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+    try {
+      await directorApi.changeUserPassword(pwUser.id, newPassword);
+      toast.success(`Password changed for ${pwUser.name}`);
+      setPwDialogOpen(false);
+      setPwUser(null);
+      setNewPassword('');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to change password');
     }
   };
 
@@ -264,15 +284,26 @@ export default function UsersPage() {
                   </div>
                 </div>
                 {user.role !== 'director' && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-error hover:text-error hover:bg-error/10"
-                    onClick={() => { setUserToDelete(user); setDeleteDialogOpen(true); }}
-                    data-testid={`delete-user-${user.id}`}
-                  >
-                    <Trash2 size={16} />
-                  </Button>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-primary hover:text-primary hover:bg-primary/10"
+                      onClick={() => { setPwUser(user); setPwDialogOpen(true); setNewPassword(''); }}
+                      data-testid={`change-pw-${user.id}`}
+                    >
+                      <KeyRound size={16} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-error hover:text-error hover:bg-error/10"
+                      onClick={() => { setUserToDelete(user); setDeleteDialogOpen(true); }}
+                      data-testid={`delete-user-${user.id}`}
+                    >
+                      <Trash2 size={16} />
+                    </Button>
+                  </div>
                 )}
               </div>
 
@@ -330,6 +361,38 @@ export default function UsersPage() {
               Delete
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Change Password Dialog */}
+      <Dialog open={pwDialogOpen} onOpenChange={(open) => { setPwDialogOpen(open); if (!open) { setPwUser(null); setNewPassword(''); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><KeyRound size={20} className="text-primary" />Change Password</DialogTitle>
+            <DialogDescription>
+              Set a new password for <strong>{pwUser?.name}</strong> ({pwUser?.email})
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleChangePassword} className="space-y-4">
+            <div className="space-y-2">
+              <Label>New Password</Label>
+              <Input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Min. 6 characters"
+                minLength={6}
+                required
+                data-testid="new-password-input"
+              />
+            </div>
+            <div className="flex gap-3 justify-end">
+              <Button variant="outline" type="button" onClick={() => setPwDialogOpen(false)}>Cancel</Button>
+              <Button type="submit" data-testid="confirm-change-pw">
+                <KeyRound size={16} className="mr-2" />Change Password
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

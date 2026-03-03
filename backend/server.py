@@ -503,6 +503,25 @@ async def reset_password(data: ResetPasswordRequest):
     await db.users.update_one({'reset_token': data.token}, {'$set': {'password_hash': new_hash, 'reset_token': None}})
     return {"message": "Password reset successfully"}
 
+
+class DirectorChangePassword(BaseModel):
+    user_id: str
+    new_password: str
+
+
+@api_router.post("/auth/director-change-password")
+async def director_change_password(data: DirectorChangePassword, current_user: dict = Depends(get_current_user)):
+    """Director can change any user's password"""
+    if current_user['role'] != UserRole.DIRECTOR:
+        raise HTTPException(status_code=403, detail="Directors only")
+    user_doc = await db.users.find_one({'id': data.user_id}, {'_id': 0})
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="User not found")
+    new_hash = hash_password(data.new_password)
+    await db.users.update_one({'id': data.user_id}, {'$set': {'password_hash': new_hash}})
+    await log_audit('update', 'user_password', data.user_id, current_user['user_id'])
+    return {"message": f"Password changed for {user_doc.get('name', user_doc.get('email'))}"}
+
 # ============================================================
 # APP SETTINGS (Director customization)
 # ============================================================

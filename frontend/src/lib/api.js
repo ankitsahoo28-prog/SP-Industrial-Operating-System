@@ -142,6 +142,7 @@ export const directorApi = {
   getDailySummary: () => api.get('/director/daily-summary'),
   updateJournalEntry: (id, data) => api.put(`/director/journal-entries/${id}`, data),
   deleteJournalEntry: (id) => api.delete(`/director/journal-entries/${id}`),
+  changeUserPassword: (user_id, new_password) => api.post('/auth/director-change-password', { user_id, new_password }),
 };
 
 // Job Role Management
