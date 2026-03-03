@@ -1,98 +1,59 @@
 # SP Industrial Operations - Product Requirements Document
 
 ## Original Problem Statement
-Build a multi-business ERP application "SP" for managing multiple companies (Petrol Pump, Hotel, FL Shop, Transport, Slag Crushing, Stone Crusher). Features include role-based access control (Director, Manager, Ground Staff), double-entry bookkeeping, inventory management, task management, real-time tracking, AI-powered tools, and cross-company reporting.
-
-## User Personas
-- **Director**: Full access, cross-company views, user management, financial oversight
-- **Manager**: Company-scoped access, team management, day-to-day operations
-- **Ground Staff**: Task execution, basic reporting
+Multi-business ERP application "SP" for managing multiple companies (Petrol Pump, Hotel, FL Shop, Transport, Slag Crushing, Stone Crusher). Role-based access control (Director, Manager, Ground Staff), double-entry bookkeeping, inventory management, task management, AI-powered tools, and cross-company reporting.
 
 ## Core Architecture
-- **Frontend**: React + Tailwind CSS + Shadcn/UI, served on port 3000
-- **Backend**: FastAPI + Python, served on port 8001
-- **Database**: MongoDB via motor (async driver)
-- **Auth**: JWT-based, role-based access control
-- **Multi-Company**: CompanyContext on frontend, company_id filtering + resolve_company_id on backend
+- **Frontend**: React + Tailwind CSS + Shadcn/UI (port 3000)
+- **Backend**: FastAPI + Python + MongoDB/motor (port 8001)
+- **Auth**: JWT, RBAC
+- **Multi-Company**: CompanyContext (frontend) + resolve_company_id (backend)
 
-## What's Been Implemented (Complete)
+## Implemented Features
 
 ### Foundation
-- [x] JWT Authentication with role-based access (Director/Manager/Ground Staff)
-- [x] Self-registration with director approval workflow
-- [x] Forgot password flow
-- [x] Multi-company architecture (CompanyContext + company_users mapping)
-- [x] Company CRUD management for directors
-- [x] Internationalization (i18n) - English, Hindi, Odia
+- [x] JWT Auth with RBAC (Director/Manager/Ground Staff)
+- [x] Self-registration with director approval
+- [x] Multi-company architecture with company_id scoping
+- [x] Company selector: Directors default to "All Companies", managers scoped to assigned company
+- [x] i18n (English, Hindi, Odia)
 
 ### Accounting & Finance
-- [x] Full double-entry bookkeeping (journal entries, accounts, ledger balances)
-- [x] Trial Balance, Profit & Loss, Balance Sheet reports
-- [x] Company-scoped data isolation (resolve_company_id for all endpoints)
+- [x] Double-entry bookkeeping (journal entries, accounts, ledger balances)
+- [x] Trial Balance, P&L, Balance Sheet
+- [x] Company-scoped data isolation via resolve_company_id
 - [x] AI Accountant (OpenAI GPT-4o via Emergent LLM key)
-- [x] Transaction management with PDF/CSV exports
 
 ### Inventory
-- [x] Comprehensive inventory system with categories per business type
-- [x] Stock movements (in/out/wastage) with auto-journal entries
-- [x] LiDAR volume scanner with camera integration
-- [x] Low stock alerts, stock register, movement history
+- [x] Full inventory system with stock movements, production, transfers
+- [x] LiDAR scanner with camera integration
+- [x] Low stock alerts, stock register
 
-### Director Features (NEW - March 2026)
-- [x] **Daily Summary**: Real-time daily activity overview across all companies
-- [x] **Executive Report**: Cross-company performance dashboard with period filters
-- [x] **Director Creation**: Directors can create other directors
-- [x] **Director Edit-All**: Universal edit permissions (update/delete any entity)
-- [x] **Role Management**: Custom job roles with granular permissions
-- [x] **Inter-Company Reconciliation**: Track, match, dispute transactions between companies
+### Director Features (March 2026)
+- [x] Daily Summary - cross-company daily activity overview
+- [x] Executive Report - cross-company performance dashboard
+- [x] Director Creation - directors can create other directors
+- [x] Director Edit-All - universal edit/delete on journal entries and tasks
+- [x] Role Management - custom job roles with granular permissions
+- [x] Inter-Company Reconciliation - match/dispute transactions between companies
 
 ### Bug Fixes (March 2026)
-- [x] **Manager Permissions**: Auto-assign managers to companies on creation + resolve_company_id for non-directors
-- [x] **Data Isolation**: All accounting/inventory/task endpoints now properly filter by company_id
-- [x] **Director Dashboard**: Executive report now aggregates data from all companies correctly
+- [x] Manager Permissions - auto-assign to company on creation + resolve_company_id
+- [x] Data Isolation - ALL endpoints (accounting, inventory, tasks, reports, indents, transactions) filter by company_id
+- [x] Director Dashboard - aggregates all company data correctly
+- [x] Company Selector - "All Companies" default for directors, scoped for managers
 
-### Other Features
-- [x] Task management with email notifications (SendGrid)
-- [x] Real-time updates via Socket.IO
-- [x] Audit logging
-- [x] App customization (logo, name, background)
-- [x] Indent management
-
-## Key API Endpoints
-| Endpoint | Method | Description |
-|---|---|---|
-| /api/auth/login | POST | JWT login |
-| /api/director/daily-summary | GET | Daily activity summary |
-| /api/director/executive-report | GET | Cross-company performance |
-| /api/job-roles | GET/POST | Role management CRUD |
-| /api/job-roles/{id} | PUT/DELETE | Update/delete role |
-| /api/reconciliation | GET/POST | Reconciliation CRUD |
-| /api/reconciliation/{id} | PATCH/DELETE | Status update/delete |
-| /api/director/journal-entries/{id} | PUT/DELETE | Director edit-all |
-| /api/journal-entries | GET/POST | Accounting entries |
-| /api/inv/items | GET/POST | Inventory items |
-| /api/inv/stock-movement | POST | Record stock movement |
-| /api/tasks | GET/POST | Task management |
-| /api/users | GET/POST | User management |
-
-## Key Technical Decisions
-- `resolve_company_id()`: Auto-resolves company_id for non-director users from company_users collection
-- Directors see all data when no company_id filter; managers/staff only see their assigned company
-- All new managers are auto-assigned to matching company by business_type on creation
+### Test Results
+- Backend: 28/28 (100%)
+- Frontend: 100%
+- Data isolation verified: Director P&L ₹3,25,625 vs Manager P&L ₹2,600
 
 ## Prioritized Backlog
+- P2: Native Android/iOS app
+- P2: True AI predictive analytics
+- P2: Full PWA offline sync
+- P2: Geolocation tracking
 
-### P2 - Future
-- Native Android/iOS app
-- True AI predictive analytics (currently simplified)
-- Full PWA offline synchronization
-- Geolocation tracking for ground staff
-- Multi-language expansion
-
-## 3rd Party Integrations
-- **OpenAI GPT-4o**: AI Accountant (via Emergent LLM key + emergentintegrations)
-- **SendGrid**: Email notifications (user API key required)
-
-## Test Credentials
-- **Director**: director@sp.com / password123
-- **Manager**: manager@sp.com / password123
+## Credentials
+- Director: director@sp.com / password123
+- Manager: manager@sp.com / password123
