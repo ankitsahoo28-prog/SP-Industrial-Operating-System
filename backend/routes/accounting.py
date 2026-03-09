@@ -232,6 +232,7 @@ async def create_transaction(transaction_data: TransactionCreate, company_id: Op
     doc['date'] = doc['date'].isoformat()
     doc['created_at'] = doc['created_at'].isoformat()
     doc['company_id'] = resolved_cid
+    doc['attachments'] = transaction_data.attachments or []
     await db.transactions.insert_one(doc)
     return transaction
 

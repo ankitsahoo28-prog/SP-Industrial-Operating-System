@@ -14,12 +14,12 @@ module.exports = {
         background: 'hsl(var(--background))',
         foreground: 'hsl(var(--foreground))',
         primary: {
-          DEFAULT: '#0F172A',
-          foreground: '#FFFFFF',
+          DEFAULT: 'var(--primary, #0F172A)',
+          foreground: 'var(--primary-foreground, #FFFFFF)',
         },
         secondary: {
-          DEFAULT: '#F1F5F9',
-          foreground: '#0F172A',
+          DEFAULT: 'hsl(var(--muted))',
+          foreground: 'hsl(var(--foreground))',
         },
         accent: {
           DEFAULT: '#F97316',

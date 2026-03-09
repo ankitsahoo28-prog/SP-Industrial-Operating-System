@@ -54,6 +54,16 @@
         </script>
     </head>
     <body>
+        <script>
+          (function() {
+            var theme = localStorage.getItem('sp-theme');
+            if (theme === 'dark') {
+              document.documentElement.classList.add('dark');
+              document.documentElement.style.setProperty('--primary', '#818cf8');
+              document.documentElement.style.setProperty('--primary-foreground', '#FFFFFF');
+            }
+          })();
+        </script>
         <noscript>You need to enable JavaScript to run this app.</noscript>
         <div id="root"></div>
         <!--

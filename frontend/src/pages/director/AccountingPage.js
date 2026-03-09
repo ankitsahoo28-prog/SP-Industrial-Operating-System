@@ -1,16 +1,20 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { bookkeepingApi, accountingApi } from '@/lib/api';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { bookkeepingApi, accountingApi, uploadApi } from '@/lib/api';
+import { API } from '@/lib/api';
 import { BusinessFilter } from '@/components/BusinessFilter';
 import AiAccountant from '@/components/AiAccountant';
 import { useCompany } from '@/context/CompanyContext';
 import { toast } from 'sonner';
 import {
   DollarSign, TrendingUp, TrendingDown, Download, FileText,
-  BookOpen, Scale, PieChart, Wallet
+  BookOpen, Scale, PieChart, Wallet, Plus, Upload, Image, Loader2, X, Paperclip, Eye
 } from 'lucide-react';
 
 export default function AccountingPage() {
@@ -26,6 +30,16 @@ export default function AccountingPage() {
   const [profitSummary, setProfitSummary] = useState(0);
   const [loading, setLoading] = useState(false);
   const { companyId } = useCompany();
+  const [transactions, setTransactions] = useState([]);
+  const [txnDialogOpen, setTxnDialogOpen] = useState(false);
+  const [txnUploading, setTxnUploading] = useState(false);
+  const [txnAttachments, setTxnAttachments] = useState([]);
+  const [viewAttachments, setViewAttachments] = useState(null);
+  const txnFileRef = useRef(null);
+  const [txnForm, setTxnForm] = useState({
+    transaction_type: 'expense', payment_mode: 'cash',
+    amount: '', description: '', category: 'General',
+  });
 
   const fetchDashboardData = useCallback(async () => {
     try {
@@ -87,6 +101,52 @@ export default function AccountingPage() {
     setActiveTab(tab);
     if (tab === 'journals') fetchJournals();
     if (tab === 'reports') fetchReports();
+    if (tab === 'transactions') fetchTransactions();
+  };
+
+  const fetchTransactions = async () => {
+    setLoading(true);
+    try {
+      const res = await accountingApi.getTransactions({ company_id: companyId });
+      setTransactions(res.data);
+    } catch { toast.error('Failed to load transactions'); }
+    finally { setLoading(false); }
+  };
+
+  const handleTxnFileUpload = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    setTxnUploading(true);
+    try {
+      for (const file of files) {
+        const res = await uploadApi.upload(file, 'bill');
+        setTxnAttachments(prev => [...prev, { url: res.data.url, name: res.data.original_name }]);
+      }
+      toast.success('File(s) uploaded');
+    } catch { toast.error('Upload failed'); }
+    finally { setTxnUploading(false); if (txnFileRef.current) txnFileRef.current.value = ''; }
+  };
+
+  const handleCreateTxn = async (e) => {
+    e.preventDefault();
+    try {
+      await accountingApi.createTransaction({
+        ...txnForm, amount: parseFloat(txnForm.amount),
+        attachments: txnAttachments.map(a => a.url),
+      });
+      toast.success('Transaction recorded');
+      setTxnDialogOpen(false);
+      setTxnForm({ transaction_type: 'expense', payment_mode: 'cash', amount: '', description: '', category: 'General' });
+      setTxnAttachments([]);
+      fetchTransactions();
+    } catch (err) { toast.error(err.response?.data?.detail || 'Failed to record transaction'); }
+  };
+
+  const resolveUrl = (url) => {
+    if (!url) return '';
+    if (url.startsWith('http')) return url;
+    if (url.startsWith('/api/')) return `${API.replace('/api', '')}${url}`;
+    return url;
   };
 
   const handleExportPdf = async () => {
@@ -117,8 +177,9 @@ export default function AccountingPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid w-full max-w-2xl grid-cols-4">
+        <TabsList className="grid w-full max-w-3xl grid-cols-5">
           <TabsTrigger value="home" data-testid="tab-home">Home</TabsTrigger>
+          <TabsTrigger value="transactions" data-testid="tab-transactions">Transactions</TabsTrigger>
           <TabsTrigger value="journals" data-testid="tab-journals">Journals</TabsTrigger>
           <TabsTrigger value="ledgers" data-testid="tab-ledgers">Ledgers</TabsTrigger>
           <TabsTrigger value="reports" data-testid="tab-reports">Reports</TabsTrigger>
@@ -158,6 +219,134 @@ export default function AccountingPage() {
 
           <AiAccountant onEntryPosted={() => { fetchDashboardData(); }} />
         </TabsContent>
+
+        {/* TRANSACTIONS TAB */}
+        <TabsContent value="transactions" className="mt-6 space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-lg font-heading font-semibold">Cash & Bank Transactions</h2>
+            <Dialog open={txnDialogOpen} onOpenChange={(open) => { setTxnDialogOpen(open); if (!open) { setTxnAttachments([]); } }}>
+              <DialogTrigger asChild>
+                <Button className="bg-accent hover:bg-accent/90" data-testid="add-transaction-btn"><Plus size={16} className="mr-1" />New Transaction</Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+                <DialogHeader><DialogTitle>Record Transaction</DialogTitle></DialogHeader>
+                <form onSubmit={handleCreateTxn} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label>Type</Label>
+                      <Select value={txnForm.transaction_type} onValueChange={v => setTxnForm(f => ({ ...f, transaction_type: v }))}>
+                        <SelectTrigger data-testid="txn-type"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="expense">Expense</SelectItem>
+                          <SelectItem value="income">Income</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Payment Mode</Label>
+                      <Select value={txnForm.payment_mode} onValueChange={v => setTxnForm(f => ({ ...f, payment_mode: v }))}>
+                        <SelectTrigger data-testid="txn-mode"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="cash">Cash</SelectItem>
+                          <SelectItem value="bank">Bank</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Amount (INR)</Label>
+                    <Input type="number" step="0.01" min="0" value={txnForm.amount} onChange={e => setTxnForm(f => ({ ...f, amount: e.target.value }))} required data-testid="txn-amount" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Description</Label>
+                    <Input value={txnForm.description} onChange={e => setTxnForm(f => ({ ...f, description: e.target.value }))} required data-testid="txn-description" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Category</Label>
+                    <Input value={txnForm.category} onChange={e => setTxnForm(f => ({ ...f, category: e.target.value }))} data-testid="txn-category" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2"><Paperclip size={14} />Bills / Photos</Label>
+                    <div className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 transition-colors" onClick={() => txnFileRef.current?.click()}>
+                      <input type="file" accept="image/*,application/pdf" multiple onChange={handleTxnFileUpload} ref={txnFileRef} className="hidden" />
+                      {txnUploading ? (
+                        <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground"><Loader2 size={16} className="animate-spin" />Uploading...</div>
+                      ) : (
+                        <div className="space-y-1">
+                          <Upload size={24} className="mx-auto text-muted-foreground" />
+                          <p className="text-xs text-muted-foreground">Click to upload bills, receipts, or photos</p>
+                        </div>
+                      )}
+                    </div>
+                    {txnAttachments.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {txnAttachments.map((a, i) => (
+                          <div key={i} className="flex items-center gap-1.5 bg-secondary/50 rounded px-2 py-1 text-xs">
+                            <Image size={12} /><span className="max-w-[120px] truncate">{a.name}</span>
+                            <button type="button" onClick={() => setTxnAttachments(prev => prev.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-destructive"><X size={12} /></button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <Button type="submit" className="w-full" data-testid="txn-submit"><Plus size={16} className="mr-1" />Record Transaction</Button>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
+          {loading ? (
+            <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" /></div>
+          ) : transactions.length === 0 ? (
+            <Card><CardContent className="p-12 text-center"><FileText size={48} className="mx-auto text-muted-foreground mb-4" /><p className="text-muted-foreground">No transactions yet. Click "New Transaction" to record one.</p></CardContent></Card>
+          ) : (
+            <div className="space-y-3">
+              {transactions.map(t => (
+                <Card key={t.id} className={`hover:shadow-md transition-shadow border-l-4 ${t.transaction_type === 'income' ? 'border-l-success' : 'border-l-error'}`}>
+                  <CardContent className="p-4 flex items-center gap-4">
+                    <div className={`p-2 rounded-lg ${t.transaction_type === 'income' ? 'bg-success/10' : 'bg-error/10'}`}>
+                      {t.transaction_type === 'income' ? <TrendingUp size={20} className="text-success" /> : <TrendingDown size={20} className="text-error" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm truncate">{t.description}</p>
+                      <p className="text-xs text-muted-foreground">{t.category} - {t.payment_mode} - {new Date(t.date).toLocaleDateString()}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {t.attachments?.length > 0 && (
+                        <Button variant="ghost" size="sm" className="text-primary" onClick={() => setViewAttachments(t.attachments)} data-testid={`view-bills-${t.id}`}>
+                          <Paperclip size={14} className="mr-1" />{t.attachments.length}
+                        </Button>
+                      )}
+                      <span className={`font-heading font-bold text-base ${t.transaction_type === 'income' ? 'text-success' : 'text-error'}`}>
+                        {t.transaction_type === 'income' ? '+' : '-'}{fmt(t.amount)}
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* View Attachments Dialog */}
+        <Dialog open={!!viewAttachments} onOpenChange={(open) => { if (!open) setViewAttachments(null); }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader><DialogTitle className="flex items-center gap-2"><Paperclip size={18} />Attached Bills</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto">
+              {(viewAttachments || []).map((url, i) => (
+                <div key={i} className="border rounded-lg overflow-hidden">
+                  {url.match(/\.(jpg|jpeg|png|webp|gif)$/i) || url.includes('image') ? (
+                    <img src={resolveUrl(url)} alt={`Bill ${i + 1}`} className="w-full h-40 object-cover" />
+                  ) : (
+                    <a href={resolveUrl(url)} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center justify-center h-40 bg-muted hover:bg-muted/80 transition-colors">
+                      <FileText size={32} className="text-muted-foreground" />
+                      <span className="text-xs mt-2 text-primary">View Document</span>
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* JOURNALS TAB */}
         <TabsContent value="journals" className="mt-6 space-y-4">

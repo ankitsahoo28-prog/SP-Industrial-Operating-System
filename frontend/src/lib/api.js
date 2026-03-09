@@ -19,6 +19,7 @@ export const userApi = {
   getUsers: () => api.get('/users'),
   createUser: (userData) => api.post('/users', userData),
   getUserCompanies: (userId) => api.get(`/users/${userId}/companies`),
+  updateJobRole: (userId, jobRoleId) => api.patch(`/users/${userId}/job-role`, null, { params: { job_role_id: jobRoleId } }),
 };
 
 export const taskApi = {
@@ -51,6 +52,7 @@ export const accountingApi = {
   createTransaction: (transactionData) => api.post('/transactions', transactionData),
   getTransactions: (params) => api.get('/transactions', { params }),
   updateTransaction: (id, data) => api.put(`/transactions/${id}`, data),
+  updateAttachments: (id, attachments) => api.patch(`/transactions/${id}/attachments`, { attachments }),
   getLedger: (params) => api.get('/ledger', { params }),
   getSummary: (params) => api.get('/accounting/summary', { params }),
   exportPdf: () => api.get('/export/transactions/pdf', { responseType: 'blob' }),
@@ -175,4 +177,22 @@ export const notificationApi = {
   markRead: (id) => api.patch(`/notifications/${id}/read`),
   markAllRead: () => api.post('/notifications/mark-all-read'),
   remove: (id) => api.delete(`/notifications/${id}`),
+};
+
+// File Upload
+export const uploadApi = {
+  upload: (file, category = 'general') => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post(`/upload?category=${category}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  uploadMultiple: (files, category = 'general') => {
+    const formData = new FormData();
+    files.forEach(f => formData.append('files', f));
+    return api.post(`/upload/multiple?category=${category}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
 };

@@ -89,6 +89,7 @@ class UserCreate(BaseModel):
     manager_id: Optional[str] = None
     shift_start: Optional[str] = None
     shift_end: Optional[str] = None
+    job_role_id: Optional[str] = None
 
 
 class UserLogin(BaseModel):
@@ -198,6 +199,7 @@ class TransactionCreate(BaseModel):
     description: str
     category: str
     date: Optional[datetime] = None
+    attachments: Optional[List[str]] = None
 
 
 class InventoryItem(BaseModel):

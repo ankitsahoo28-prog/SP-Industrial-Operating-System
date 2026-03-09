@@ -185,11 +185,13 @@ async def create_user(user_data: UserCreate, current_user: dict = Depends(get_cu
         raise HTTPException(status_code=400, detail="Email already registered")
 
     password_hash = hash_password(user_data.password)
-    user_dict = user_data.model_dump(exclude={'password'})
+    user_dict = user_data.model_dump(exclude={'password', 'job_role_id'})
     user = User(**user_dict)
     doc = user.model_dump()
     doc['password_hash'] = password_hash
     doc['created_at'] = doc['created_at'].isoformat()
+    if hasattr(user_data, 'job_role_id') and user_data.job_role_id:
+        doc['job_role_id'] = user_data.job_role_id
     await db.users.insert_one(doc)
 
     if user_data.role != UserRole.DIRECTOR:
@@ -216,6 +218,39 @@ async def delete_user(user_id: str, current_user: dict = Depends(get_current_use
     await log_audit('delete', 'user', user_id, current_user['user_id'], old_data=user_doc)
     await db.users.delete_one({'id': user_id})
     return {"message": "User deleted successfully"}
+
+
+@router.patch("/users/{user_id}/job-role")
+async def update_user_job_role(user_id: str, job_role_id: str = None, current_user: dict = Depends(get_current_user)):
+    if current_user['role'] != UserRole.DIRECTOR:
+        raise HTTPException(status_code=403, detail="Only directors can update job roles")
+    user_doc = await db.users.find_one({'id': user_id}, {'_id': 0})
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="User not found")
+    await db.users.update_one({'id': user_id}, {'$set': {'job_role_id': job_role_id}})
+    await log_audit('update', 'user_job_role', user_id, current_user['user_id'],
+                    new_data={'job_role_id': job_role_id})
+    return {"message": "Job role updated"}
+
+
+# --- Transaction Attachments ---
+
+from pydantic import BaseModel
+from typing import List
+
+class AttachmentsUpdate(BaseModel):
+    attachments: List[str]
+
+@router.patch("/transactions/{transaction_id}/attachments")
+async def update_transaction_attachments(transaction_id: str, data: AttachmentsUpdate,
+                                         current_user: dict = Depends(get_current_user)):
+    if current_user['role'] == UserRole.GROUND_STAFF:
+        raise HTTPException(status_code=403, detail="Access denied")
+    existing = await db.transactions.find_one({'id': transaction_id}, {'_id': 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    await db.transactions.update_one({'id': transaction_id}, {'$set': {'attachments': data.attachments}})
+    return {"message": "Attachments updated"}
 
 
 # --- Executive Report ---
