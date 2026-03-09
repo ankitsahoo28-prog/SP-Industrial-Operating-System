@@ -12,35 +12,26 @@ Multi-business ERP application "SP" for managing industrial operations across mu
 - **Reports & Indents**: Ground staff reports, manager indents with director authorization
 - **AI Features**: Business insights, predictive analytics, AI inventory assistant, AI accountant
 
-## User Personas
-- **Director**: Full control, multi-company view, user management, analytics
-- **Manager**: Team management, reporting, indent creation
-- **Ground Staff**: Task execution, report submission, location tracking
-
 ## Architecture
 
 ### Backend (FastAPI + MongoDB)
 ```
 /app/backend/
-├── server.py              # Thin entry point (~65 lines) - FastAPI app, middleware, startup
-├── database.py            # MongoDB connection (motor)
+├── server.py              # Thin entry point (~70 lines)
+├── database.py            # MongoDB connection
 ├── models.py              # All Pydantic models and enums
 ├── deps.py                # Auth, helpers (JWT, password, audit, notifications)
 ├── routes/
-│   ├── auth.py            # Authentication + user CRUD
-│   ├── companies.py       # Company CRUD + user-company mapping + executive report
-│   ├── tasks.py           # Tasks, Reports, Indents, Locations + email notifications
-│   ├── accounting.py      # Double-entry bookkeeping, transactions, exports, AI accountant
+│   ├── auth.py            # Authentication + password management
+│   ├── companies.py       # Company CRUD + user management + executive report
+│   ├── tasks.py           # Tasks, Reports, Indents, Locations
+│   ├── accounting.py      # Double-entry bookkeeping, transactions, exports
 │   ├── inventory.py       # Comprehensive inventory + AI assistant
-│   └── director.py        # Dashboard, predictions, settings, notifications, roles, reconciliation
-├── accounting_engine.py   # Double-entry bookkeeping engine
-├── inventory_engine.py    # Inventory management engine
-├── company_engine.py      # Company management engine
-├── email_service.py       # Email notifications (Resend)
-├── export_service.py      # PDF/CSV export generation
-├── ai_service.py          # AI business insights
-├── websocket_service.py   # Socket.IO for real-time
-└── i18n.py                # Translations
+│   ├── director.py        # Dashboard, predictions, settings, notifications, roles, reconciliation
+│   └── uploads.py         # File upload and serving
+├── accounting_engine.py, inventory_engine.py, company_engine.py
+├── email_service.py, export_service.py, ai_service.py
+└── websocket_service.py
 ```
 
 ### Frontend (React + Tailwind + Shadcn/UI)
@@ -48,83 +39,52 @@ Multi-business ERP application "SP" for managing industrial operations across mu
 /app/frontend/src/
 ├── App.js                 # Main app with PWA registration
 ├── components/
-│   ├── Layout.js          # Sidebar + header with NotificationBell
-│   ├── NotificationBell.js # In-app notification system
-│   ├── CompanySelector.js # Company switching for directors
-│   └── PWAComponents.js   # PWA install banner, offline indicator, update banner
+│   ├── Layout.js          # Sidebar + header with ThemeToggle + NotificationBell
+│   ├── NotificationBell.js
+│   ├── ThemeToggle.js     # Dark/light mode switcher
+│   ├── PWAComponents.js   # Install banner, offline indicator, update banner
+│   └── CompanySelector.js
 ├── lib/
-│   ├── api.js             # API client with all endpoints
-│   ├── offlineDb.js       # IndexedDB for offline storage (Dexie)
-│   └── serviceWorkerRegistration.js # SW registration + install prompt
+│   ├── api.js             # API client (incl. uploadApi)
+│   ├── offlineDb.js       # IndexedDB offline storage
+│   └── serviceWorkerRegistration.js
 └── pages/
-    ├── director/          # Director-specific pages
-    ├── manager/           # Manager pages
-    └── ground-staff/      # Ground staff pages
+    ├── director/
+    │   ├── UsersPage.js       # Job role support
+    │   ├── SettingsPage.js    # File upload for logo/bg
+    │   ├── AccountingPage.js  # Transactions with bill upload
+    │   └── ...
+    ├── manager/
+    └── ground-staff/
 ```
 
 ## What's Been Implemented
 
-### Phase 1: Core ERP (Completed)
-- User authentication (JWT) with self-registration and director approval
-- Multi-company management with CRUD operations
-- Role-based access control (Director, Manager, Ground Staff)
-- Task management with assignment and status tracking
-- Report submission with inventory auto-update
-- Indent creation and authorization flow
-- Double-entry accounting with AI accountant
-- Comprehensive inventory management system
-- Dashboard with business statistics
+### Phase 1-3: Core ERP + Director Features + Notifications (Completed)
+- Full authentication, multi-company, RBAC, task management, reports, indents
+- Double-entry accounting with AI accountant, inventory management
+- Director features: executive report, daily summary, role management, reconciliation
+- In-app + email notifications, custom business types
 
-### Phase 2: Director Features (Completed)
-- Director "All Companies" view
-- Multi-company user assignment
-- Director password control for any user
-- Director universal edit/delete on tasks, reports, indents, journal entries
-- Executive reporting dashboard with period filtering
-- Daily summary endpoint
-- Role management (custom job roles with permissions)
-- Inter-company reconciliation
-- AI predictive analytics (GPT-4o-mini powered)
-- AI business insights
+### Phase 4: Refactoring + PWA (Completed - Mar 2026)
+- Backend split from 2707-line monolith into 7 modular FastAPI routers
+- Enhanced service worker, PWA manifest, offline IndexedDB storage
+- Install prompt, offline indicator, update banner
 
-### Phase 3: Notifications & Communication (Completed)
-- In-app notification system (bell icon in header)
-- Email notifications for task assignments, updates, indent approvals
-- Real-time notification polling (15-second intervals)
-- Mark as read/unread, delete, mark all read
-
-### Phase 4: Refactoring & PWA (Completed - Feb 2026)
-- **Backend Refactoring**: Monolithic server.py (2707 lines) split into 6 modular FastAPI routers
-  - Shared models.py, deps.py, database.py
-  - Routes: auth, companies, tasks, accounting, inventory, director
-- **PWA Enhancements**:
-  - Enhanced service worker with network-first/cache-first strategies
-  - Proper manifest.json with app shortcuts
-  - IndexedDB offline storage (Dexie v2) with sync queue
-  - PWA install prompt banner
-  - Offline indicator
-  - App update banner
-  - Apple mobile web app meta tags
-
-### Other Features (Completed)
-- Custom business type support
-- PDF/CSV export for transactions, ledger, inventory
-- Audit trail logging
-- Location tracking
-- App settings customization (branding)
-- Multi-language support (i18n)
-- LiDAR scanning integration (basic)
+### Phase 5: New Features (Completed - Mar 2026)
+- **Job Roles in User Management**: Custom roles from Role Management now appear in Add User form and can be assigned/changed per user via the "Role" button on user cards
+- **File Upload for Branding**: Settings page supports uploading logo, background video, and background image with preview
+- **Dark/Light Theme**: Theme toggle (sun/moon icon) in header persists preference to localStorage
+- **Transaction Bill Upload**: Accounting Transactions tab supports attaching bills, receipts, and photos when recording cash/bank payments. Attachments viewable via paperclip icon
 
 ## Prioritized Backlog
 
 ### P0 (Critical) - None remaining
-
-### P1 (High)
-- None remaining
+### P1 (High) - None remaining
 
 ### P2 (Medium)
-- Build native Android/iOS wrapper (Capacitor/React Native)
-- True real-time with WebSocket instead of polling
+- Native Android/iOS wrapper (Capacitor)
+- Real-time WebSocket notifications (replace polling)
 - Geolocation tracking for ground staff
 
 ### P3 (Low/Future)
@@ -134,20 +94,13 @@ Multi-business ERP application "SP" for managing industrial operations across mu
 - Advanced analytics dashboard with drill-down
 
 ## Technical Stack
-- **Frontend**: React 18, Tailwind CSS, Shadcn/UI, Recharts, Dexie (IndexedDB)
+- **Frontend**: React 18, Tailwind CSS, Shadcn/UI, Recharts, Dexie
 - **Backend**: FastAPI, Python 3, MongoDB (motor), Pydantic
 - **AI**: OpenAI GPT-4o-mini via Emergent LLM Key
-- **Email**: Resend
 - **Auth**: JWT with bcrypt
-- **PWA**: Service Worker, Web App Manifest, IndexedDB offline storage
+- **PWA**: Service Worker, Web App Manifest, IndexedDB
 
 ## Test Credentials
 - Director: director@sp.com / password123
 - Manager: manager@sp.com / password123
 - Ground Staff: mike.staff@sp.com / password123
-
-## Database Collections
-- users, companies, company_users, tasks, reports, indents, transactions
-- journal_entries, accounts, ledger_balances, inventory, inventory_items
-- stock_movements, production_batches, inventory_transfers, lidar_scans
-- notifications, job_roles, reconciliations, audit_logs, app_settings
