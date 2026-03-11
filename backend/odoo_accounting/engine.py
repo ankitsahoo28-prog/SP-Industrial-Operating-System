@@ -248,7 +248,7 @@ async def create_invoice_move(db, invoice_data: dict, company_id: str, user_id: 
         raise ValueError("No suitable journal found")
 
     inv_date = invoice_data.get("date") or now.strftime("%Y-%m-%d")
-    due_days = invoice_data.get("payment_terms_days", 30)
+    due_days = invoice_data.get("payment_terms_days") or 30  # Default to 30 if None or 0
     due_date = invoice_data.get("due_date")
     if not due_date:
         due_dt = datetime.strptime(inv_date, "%Y-%m-%d") + timedelta(days=due_days)

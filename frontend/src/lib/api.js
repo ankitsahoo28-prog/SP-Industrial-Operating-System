@@ -4,7 +4,7 @@ export const API = process.env.REACT_APP_BACKEND_URL + '/api';
 
 export const api = axios.create({ baseURL: API });
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('sp_token');
+  const token = localStorage.getItem('token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
