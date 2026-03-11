@@ -199,4 +199,14 @@ export const odooApi = {
     taxReport: (params) => api.get('/acc/reports/tax-report', { params }),
     partnerLedger: (partnerId, params) => api.get(`/acc/reports/partner-ledger/${partnerId}`, { params }),
   },
+  // AI Features
+  ai: {
+    chat: (data) => api.post('/acc/ai/chat', data),
+    invoiceExtract: (data) => api.post('/acc/ai/invoice-extract', data),
+    categorize: (data) => api.post('/acc/ai/categorize', data),
+    reconcileSuggest: (data) => api.post('/acc/ai/reconcile-suggest', data),
+    financialQA: (data) => api.post('/acc/ai/financial-qa', data),
+    cashForecast: (params) => api.get('/acc/ai/cash-forecast', { params }),
+    anomalies: (params) => api.get('/acc/ai/anomalies', { params }),
+  },
 };

@@ -1,12 +1,13 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useCompany } from '@/context/CompanyContext';
-import { DollarSign, Receipt, CreditCard, BookOpen, BarChart3, Settings } from 'lucide-react';
+import { DollarSign, Receipt, CreditCard, BookOpen, BarChart3, Settings, Bot } from 'lucide-react';
 import { OverviewTab } from './accounting/OverviewTab';
 import { InvoicingTab } from './accounting/InvoicingTab';
 import { PaymentsTab } from './accounting/PaymentsTab';
 import { JournalEntriesTab } from './accounting/JournalEntriesTab';
 import { ReportsTab } from './accounting/ReportsTab';
 import { ConfigTab } from './accounting/ConfigTab';
+import { AiAssistantTab } from './accounting/AiAssistantTab';
 
 export default function OdooAccountingPage() {
   const { companyId } = useCompany();
@@ -18,8 +19,9 @@ export default function OdooAccountingPage() {
         <p className="text-muted-foreground mt-1">Complete double-entry bookkeeping system</p>
       </div>
       <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="grid w-full max-w-3xl grid-cols-6">
+        <TabsList className="grid w-full max-w-4xl grid-cols-7">
           <TabsTrigger value="overview" data-testid="acc-tab-overview"><DollarSign size={14} className="mr-1 hidden sm:inline" />Overview</TabsTrigger>
+          <TabsTrigger value="ai" data-testid="acc-tab-ai"><Bot size={14} className="mr-1 hidden sm:inline" />AI Assistant</TabsTrigger>
           <TabsTrigger value="invoicing" data-testid="acc-tab-invoicing"><Receipt size={14} className="mr-1 hidden sm:inline" />Invoicing</TabsTrigger>
           <TabsTrigger value="payments" data-testid="acc-tab-payments"><CreditCard size={14} className="mr-1 hidden sm:inline" />Payments</TabsTrigger>
           <TabsTrigger value="entries" data-testid="acc-tab-entries"><BookOpen size={14} className="mr-1 hidden sm:inline" />Entries</TabsTrigger>
@@ -27,6 +29,7 @@ export default function OdooAccountingPage() {
           <TabsTrigger value="config" data-testid="acc-tab-config"><Settings size={14} className="mr-1 hidden sm:inline" />Config</TabsTrigger>
         </TabsList>
         <TabsContent value="overview"><OverviewTab companyId={companyId} /></TabsContent>
+        <TabsContent value="ai"><AiAssistantTab companyId={companyId} /></TabsContent>
         <TabsContent value="invoicing"><InvoicingTab companyId={companyId} /></TabsContent>
         <TabsContent value="payments"><PaymentsTab companyId={companyId} /></TabsContent>
         <TabsContent value="entries"><JournalEntriesTab companyId={companyId} /></TabsContent>
