@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { odooApi } from '@/lib/api';
 import { toast } from 'sonner';
@@ -54,7 +54,7 @@ export function PaymentsTab({ companyId }) {
         <Dialog open={dlgOpen} onOpenChange={setDlgOpen}>
           <DialogTrigger asChild><Button className="bg-accent hover:bg-accent/90" data-testid="new-payment-btn"><Plus size={16} className="mr-1" />Register Payment</Button></DialogTrigger>
           <DialogContent className="max-w-md">
-            <DialogHeader><DialogTitle>Register Payment</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>Register Payment</DialogTitle><DialogDescription>Fill in the details to register a new payment.</DialogDescription></DialogHeader>
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1"><Label>Type</Label>

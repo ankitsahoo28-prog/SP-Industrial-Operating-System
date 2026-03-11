@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { odooApi } from '@/lib/api';
 import { toast } from 'sonner';
@@ -61,7 +61,7 @@ export function JournalEntriesTab({ companyId }) {
         <Dialog open={dlgOpen} onOpenChange={setDlgOpen}>
           <DialogTrigger asChild><Button className="bg-accent hover:bg-accent/90" data-testid="new-entry-btn"><Plus size={16} className="mr-1" />New Entry</Button></DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-            <DialogHeader><DialogTitle>Create Journal Entry</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>Create Journal Entry</DialogTitle><DialogDescription>Create a balanced double-entry journal entry.</DialogDescription></DialogHeader>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1"><Label>Journal</Label>

@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { odooApi } from '@/lib/api';
 import { toast } from 'sonner';
@@ -137,7 +137,7 @@ export function ConfigTab({ companyId }) {
             <Dialog open={accountDlg} onOpenChange={setAccountDlg}>
               <DialogTrigger asChild><Button className="bg-accent hover:bg-accent/90" data-testid="new-account-btn"><Plus size={16} className="mr-1" />New Account</Button></DialogTrigger>
               <DialogContent className="max-w-md">
-                <DialogHeader><DialogTitle>Create Account</DialogTitle></DialogHeader>
+                <DialogHeader><DialogTitle>Create Account</DialogTitle><DialogDescription>Add a new account to the chart of accounts.</DialogDescription></DialogHeader>
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1"><Label>Code</Label><Input value={accountForm.code} onChange={e => setAccountForm(f => ({ ...f, code: e.target.value }))} placeholder="e.g. 4100" data-testid="account-code" /></div>
@@ -175,7 +175,7 @@ export function ConfigTab({ companyId }) {
             <Dialog open={partnerDlg} onOpenChange={setPartnerDlg}>
               <DialogTrigger asChild><Button className="bg-accent hover:bg-accent/90" data-testid="new-partner-btn"><Plus size={16} className="mr-1" />New Partner</Button></DialogTrigger>
               <DialogContent className="max-w-md">
-                <DialogHeader><DialogTitle>Create Partner</DialogTitle></DialogHeader>
+                <DialogHeader><DialogTitle>Create Partner</DialogTitle><DialogDescription>Add a customer or vendor partner.</DialogDescription></DialogHeader>
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1"><Label>Name</Label><Input value={partnerForm.name} onChange={e => setPartnerForm(f => ({ ...f, name: e.target.value }))} data-testid="partner-name" /></div>
@@ -208,7 +208,7 @@ export function ConfigTab({ companyId }) {
             <Dialog open={taxDlg} onOpenChange={setTaxDlg}>
               <DialogTrigger asChild><Button className="bg-accent hover:bg-accent/90" data-testid="new-tax-btn"><Plus size={16} className="mr-1" />New Tax</Button></DialogTrigger>
               <DialogContent className="max-w-md">
-                <DialogHeader><DialogTitle>Create Tax</DialogTitle></DialogHeader>
+                <DialogHeader><DialogTitle>Create Tax</DialogTitle><DialogDescription>Define a new tax rate.</DialogDescription></DialogHeader>
                 <div className="space-y-3">
                   <div className="space-y-1"><Label>Name</Label><Input value={taxForm.name} onChange={e => setTaxForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. GST 18%" data-testid="tax-name" /></div>
                   <div className="grid grid-cols-2 gap-3">
@@ -244,7 +244,7 @@ export function ConfigTab({ companyId }) {
             <Dialog open={journalDlg} onOpenChange={setJournalDlg}>
               <DialogTrigger asChild><Button className="bg-accent hover:bg-accent/90" data-testid="new-journal-btn"><Plus size={16} className="mr-1" />New Journal</Button></DialogTrigger>
               <DialogContent className="max-w-md">
-                <DialogHeader><DialogTitle>Create Journal</DialogTitle></DialogHeader>
+                <DialogHeader><DialogTitle>Create Journal</DialogTitle><DialogDescription>Add a new accounting journal.</DialogDescription></DialogHeader>
                 <div className="space-y-3">
                   <div className="space-y-1"><Label>Name</Label><Input value={journalForm.name} onChange={e => setJournalForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Petty Cash" data-testid="journal-name" /></div>
                   <div className="grid grid-cols-2 gap-3">
@@ -284,7 +284,7 @@ export function ConfigTab({ companyId }) {
             <Dialog open={fiscalDlg} onOpenChange={setFiscalDlg}>
               <DialogTrigger asChild><Button className="bg-accent hover:bg-accent/90" data-testid="new-fiscal-btn"><Plus size={16} className="mr-1" />New Fiscal Year</Button></DialogTrigger>
               <DialogContent className="max-w-md">
-                <DialogHeader><DialogTitle>Create Fiscal Year</DialogTitle></DialogHeader>
+                <DialogHeader><DialogTitle>Create Fiscal Year</DialogTitle><DialogDescription>Define a new fiscal year period.</DialogDescription></DialogHeader>
                 <div className="space-y-3">
                   <div className="space-y-1"><Label>Name</Label><Input value={fiscalForm.name} onChange={e => setFiscalForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. FY 2025-26" data-testid="fiscal-name" /></div>
                   <div className="grid grid-cols-2 gap-3">
