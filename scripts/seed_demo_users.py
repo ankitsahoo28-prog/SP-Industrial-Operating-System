@@ -2,7 +2,7 @@ import requests
 import sys
 
 # API URL
-BACKEND_URL = "https://erp-notifications.preview.emergentagent.com/api"
+BACKEND_URL = "https://journal-entries-1.preview.emergentagent.com/api"
 
 def create_demo_users():
     """Create demo users for testing"""

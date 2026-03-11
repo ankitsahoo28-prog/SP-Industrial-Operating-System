@@ -1,0 +1,1 @@
+# Odoo-style Accounting Engine
