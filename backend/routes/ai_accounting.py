@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime, timezone, timedelta
@@ -606,4 +606,108 @@ RESPOND IN JSON:
     except json.JSONDecodeError:
         return {"anomalies": [], "summary": resp[:500] if resp else "Analysis failed", "health_score": 0}
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ 8. BILL/INVOICE PHOTO SCANNER ============
+
+@router.post("/scan-bill")
+async def ai_scan_bill(
+    file: UploadFile = File(...),
+    company_id: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+):
+    if current_user['role'] == UserRole.GROUND_STAFF:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    content = await file.read()
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large (max 10MB)")
+
+    mime = file.content_type or "image/jpeg"
+    if mime not in ("image/jpeg", "image/png", "image/webp"):
+        raise HTTPException(status_code=400, detail="Only JPEG, PNG, WEBP images supported")
+
+    import base64
+    b64 = base64.b64encode(content).decode("utf-8")
+
+    cid = await get_cid(current_user, company_id)
+    partners = await get_partners_context(cid)
+    partner_list = ", ".join([f"{p['name']} (id: {p['id']})" for p in partners]) or "None"
+
+    system_prompt = f"""You are an expert OCR and invoice extraction AI for Indian businesses.
+Analyze the uploaded bill/invoice image and extract all structured data.
+
+EXISTING PARTNERS: {partner_list}
+
+EXTRACT AND RESPOND IN THIS EXACT JSON FORMAT:
+{{
+  "vendor_name": "name of the vendor/seller",
+  "vendor_gstin": "GST number if visible",
+  "vendor_address": "address if visible",
+  "buyer_name": "name of the buyer if visible",
+  "invoice_number": "invoice/bill number",
+  "invoice_date": "YYYY-MM-DD",
+  "due_date": "YYYY-MM-DD or null",
+  "move_type": "in_invoice for purchase bills, out_invoice for sales invoices",
+  "partner_id": "matching partner id from list or null",
+  "line_items": [
+    {{
+      "description": "item/service description",
+      "hsn_sac": "HSN/SAC code if visible",
+      "quantity": 1,
+      "unit_price": 0.0,
+      "discount": 0,
+      "tax_rate": 0,
+      "total": 0.0
+    }}
+  ],
+  "subtotal": 0.0,
+  "tax_details": {{
+    "cgst": 0, "sgst": 0, "igst": 0, "cess": 0, "total_tax": 0
+  }},
+  "grand_total": 0.0,
+  "amount_in_words": "amount in words if visible",
+  "payment_terms": "payment terms if visible",
+  "bank_details": "bank details if visible",
+  "notes": "any additional notes or terms visible on the bill",
+  "confidence": 0.95,
+  "raw_text": "full OCR text extracted from the image"
+}}
+
+Be thorough - extract every detail visible in the image. If something is unclear, provide your best interpretation and note it."""
+
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+        key = os.environ.get(EMERGENT_KEY_ENV)
+        if not key:
+            raise HTTPException(status_code=500, detail="AI service not configured")
+
+        chat = LlmChat(
+            api_key=key,
+            session_id=f"acc-ai-scan-{current_user['user_id']}-{uuid.uuid4().hex[:8]}",
+            system_message=system_prompt,
+        ).with_model("openai", "gpt-4o")
+
+        image_content = ImageContent(image_base64=b64)
+        user_message = UserMessage(
+            text="Please analyze this bill/invoice image and extract all data into the JSON format specified.",
+            file_contents=[image_content],
+        )
+        resp = await chat.send_message(user_message)
+        result = parse_ai_json(resp)
+
+        # Save the uploaded file
+        ext = os.path.splitext(file.filename or "scan.jpg")[1] or ".jpg"
+        fname = f"bill_scan_{uuid.uuid4().hex[:12]}{ext}"
+        fpath = os.path.join("/app/uploads", fname)
+        with open(fpath, "wb") as f:
+            f.write(content)
+        result["scanned_image_url"] = f"/api/files/{fname}"
+
+        return result
+    except json.JSONDecodeError:
+        return {"error": "Could not parse AI response", "raw_text": resp[:1000] if resp else ""}
+    except Exception as e:
+        logger.error(f"Bill scan error: {e}")
         raise HTTPException(status_code=500, detail=str(e))

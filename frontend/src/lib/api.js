@@ -208,5 +208,6 @@ export const odooApi = {
     financialQA: (data) => api.post('/acc/ai/financial-qa', data),
     cashForecast: (params) => api.get('/acc/ai/cash-forecast', { params }),
     anomalies: (params) => api.get('/acc/ai/anomalies', { params }),
+    scanBill: (formData) => api.post('/acc/ai/scan-bill', formData, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 60000 }),
   },
 };

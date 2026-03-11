@@ -12,7 +12,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, L
 import {
   Bot, Send, Loader2, Sparkles, FileText, Tag, GitMerge, MessageSquare,
   TrendingUp, Shield, CheckCircle2, AlertTriangle, Info, ChevronDown, ChevronUp,
-  Zap, Brain, ArrowUpDown
+  Zap, Brain, ArrowUpDown, Camera, Upload, X, Image
 } from 'lucide-react';
 import { cleanParams } from './helpers';
 
@@ -414,6 +414,143 @@ function AiAnomalies({ companyId }) {
   );
 }
 
+function AiBillScanner({ companyId }) {
+  const [file, setFile] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const fileRef = useRef(null);
+
+  const handleFile = (f) => {
+    if (!f) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(f.type)) {
+      toast.error('Only JPEG, PNG, WEBP images supported');
+      return;
+    }
+    if (f.size > 10 * 1024 * 1024) { toast.error('Max 10MB'); return; }
+    setFile(f);
+    setResult(null);
+    const reader = new FileReader();
+    reader.onload = (e) => setPreview(e.target.result);
+    reader.readAsDataURL(f);
+  };
+
+  const scan = async () => {
+    if (!file) return;
+    setLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      if (companyId) formData.append('company_id', companyId);
+      const res = await odooApi.ai.scanBill(formData);
+      setResult(res.data);
+      toast.success('Bill scanned successfully!');
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Scan failed');
+    }
+    setLoading(false);
+  };
+
+  const clear = () => { setFile(null); setPreview(null); setResult(null); };
+
+  return (
+    <div className="space-y-4" data-testid="ai-bill-scanner">
+      {!file ? (
+        <div
+          className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${dragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/20 hover:border-primary/50'}`}
+          onClick={() => fileRef.current?.click()}
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); }}
+          data-testid="bill-drop-zone"
+        >
+          <Camera size={48} className="mx-auto text-muted-foreground mb-3 opacity-50" />
+          <p className="text-sm font-medium">Drop a bill/invoice photo here</p>
+          <p className="text-xs text-muted-foreground mt-1">or click to browse (JPEG, PNG, WEBP - max 10MB)</p>
+          <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={e => handleFile(e.target.files?.[0])} data-testid="bill-file-input" />
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div className="relative">
+            <img src={preview} alt="Bill preview" className="max-h-[250px] rounded-lg border mx-auto object-contain" />
+            <Button variant="ghost" size="sm" className="absolute top-1 right-1 bg-background/80 h-7 w-7 p-0" onClick={clear}>
+              <X size={14} />
+            </Button>
+          </div>
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>{file.name} ({(file.size / 1024).toFixed(0)} KB)</span>
+            <Button onClick={scan} disabled={loading} data-testid="scan-bill-btn">
+              {loading ? <><Loader2 size={16} className="animate-spin mr-2" />Scanning with AI...</> : <><Camera size={16} className="mr-2" />Scan Bill</>}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {result && !result.error && (
+        <Card data-testid="scan-result">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-heading font-bold text-base">Extracted Data</h3>
+              <Badge className="bg-success/20 text-success border-0">{Math.round((result.confidence || 0) * 100)}% confidence</Badge>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              {result.vendor_name && <div className="bg-muted/50 p-2 rounded"><p className="text-[10px] text-muted-foreground">Vendor</p><p className="font-semibold">{result.vendor_name}</p>{result.vendor_gstin && <p className="text-xs text-muted-foreground">GSTIN: {result.vendor_gstin}</p>}</div>}
+              {result.invoice_number && <div className="bg-muted/50 p-2 rounded"><p className="text-[10px] text-muted-foreground">Invoice #</p><p className="font-semibold">{result.invoice_number}</p></div>}
+              {result.invoice_date && <div className="bg-muted/50 p-2 rounded"><p className="text-[10px] text-muted-foreground">Date</p><p className="font-semibold">{result.invoice_date}</p></div>}
+              {result.due_date && <div className="bg-muted/50 p-2 rounded"><p className="text-[10px] text-muted-foreground">Due Date</p><p className="font-semibold">{result.due_date}</p></div>}
+            </div>
+
+            {result.line_items?.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold mb-1 text-muted-foreground">LINE ITEMS</p>
+                <div className="space-y-1">
+                  {result.line_items.map((item, i) => (
+                    <div key={i} className="flex justify-between items-center bg-muted/30 p-2 rounded text-sm">
+                      <div className="flex-1 min-w-0">
+                        <p className="truncate">{item.description}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {item.quantity} x {fmt(item.unit_price)}
+                          {item.hsn_sac ? ` (HSN: ${item.hsn_sac})` : ''}
+                          {item.tax_rate ? ` +${item.tax_rate}% tax` : ''}
+                        </p>
+                      </div>
+                      <p className="font-semibold ml-3">{fmt(item.total || (item.quantity * item.unit_price))}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-3 gap-2 text-sm">
+              <div className="bg-muted/50 p-2 rounded text-center"><p className="text-[10px] text-muted-foreground">Subtotal</p><p className="font-bold">{fmt(result.subtotal)}</p></div>
+              <div className="bg-muted/50 p-2 rounded text-center"><p className="text-[10px] text-muted-foreground">Tax</p><p className="font-bold">{fmt(result.tax_details?.total_tax)}</p>
+                {result.tax_details && <p className="text-[9px] text-muted-foreground">
+                  {result.tax_details.cgst ? `CGST: ${fmt(result.tax_details.cgst)} ` : ''}
+                  {result.tax_details.sgst ? `SGST: ${fmt(result.tax_details.sgst)} ` : ''}
+                  {result.tax_details.igst ? `IGST: ${fmt(result.tax_details.igst)}` : ''}
+                </p>}
+              </div>
+              <div className="bg-primary/10 p-2 rounded text-center"><p className="text-[10px] text-muted-foreground">Total</p><p className="font-bold text-primary text-lg">{fmt(result.grand_total)}</p></div>
+            </div>
+
+            {result.amount_in_words && <p className="text-xs text-muted-foreground italic">{result.amount_in_words}</p>}
+            {result.payment_terms && <p className="text-xs"><span className="text-muted-foreground">Terms:</span> {result.payment_terms}</p>}
+            {result.bank_details && <p className="text-xs"><span className="text-muted-foreground">Bank:</span> {result.bank_details}</p>}
+
+            <Button size="sm" className="w-full" onClick={() => toast.info('Use the Invoicing tab to create a bill with this extracted data')} data-testid="create-bill-from-scan">
+              <Sparkles size={14} className="mr-1" />Create Bill from Scan
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {result?.error && <p className="text-error text-sm">{result.error}</p>}
+    </div>
+  );
+}
+
 // ========= MAIN TAB =========
 export function AiAssistantTab({ companyId }) {
   const [activeFeature, setActiveFeature] = useState('chat');
@@ -421,6 +558,7 @@ export function AiAssistantTab({ companyId }) {
 
   const features = [
     { id: 'chat', label: 'AI Chat', icon: Bot, desc: 'Natural language accounting' },
+    { id: 'scanner', label: 'Bill Scanner', icon: Camera, desc: 'Scan bills with AI vision' },
     { id: 'invoice', label: 'Invoice Extract', icon: FileText, desc: 'Auto-extract invoice data' },
     { id: 'categorize', label: 'Categorize', icon: Tag, desc: 'Smart account suggestions' },
     { id: 'reconcile', label: 'Reconcile', icon: GitMerge, desc: 'AI-powered matching' },
@@ -453,6 +591,7 @@ export function AiAssistantTab({ companyId }) {
         </CardHeader>
         <CardContent>
           {activeFeature === 'chat' && <AiChatSection companyId={companyId} />}
+          {activeFeature === 'scanner' && <AiBillScanner companyId={companyId} />}
           {activeFeature === 'invoice' && <AiInvoiceExtractor companyId={companyId} />}
           {activeFeature === 'categorize' && <AiCategorizer companyId={companyId} />}
           {activeFeature === 'reconcile' && <AiReconciliation companyId={companyId} />}
