@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { companyApi } from '@/lib/api';
+import { companyApi, directorApi } from '@/lib/api';
 import { toast } from 'sonner';
 import { BarChart3, TrendingUp, TrendingDown, DollarSign, Wallet, Package, Loader2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
@@ -25,7 +25,7 @@ export default function ExecutiveReport() {
     setLoading(true);
     const params = { period };
     if (companyFilter !== 'all') params.company_id = companyFilter;
-    companyApi.getExecutiveReport(params)
+    directorApi.getExecutiveReport(params)
       .then(r => setReport(r.data))
       .catch(() => toast.error('Failed to load report'))
       .finally(() => setLoading(false));
