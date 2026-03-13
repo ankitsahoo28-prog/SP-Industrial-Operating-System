@@ -263,3 +263,22 @@ export const roleTemplateApi = {
   createFromTemplate: (name) => api.post(`/job-roles/from-template?template_name=${encodeURIComponent(name)}`),
 };
 
+
+// ======== AI BUSINESS ASSISTANT API ========
+export const aiAssistantApi = {
+  chat: (message, companyId) => api.post('/ai-assistant/chat', { message, company_id: companyId }),
+  upload: (file, message, companyId) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('message', message || '');
+    if (companyId) fd.append('company_id', companyId);
+    return api.post('/ai-assistant/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 60000 });
+  },
+  approve: (pendingId, entries) => api.post('/ai-assistant/approve', { pending_id: pendingId, entries }),
+  reject: (pendingId) => api.post('/ai-assistant/reject', { pending_id: pendingId }),
+  history: (companyId) => api.get('/ai-assistant/history', { params: { company_id: companyId } }),
+  auditTrail: (companyId) => api.get('/ai-assistant/audit-trail', { params: { company_id: companyId } }),
+  learn: (data) => api.post('/ai-assistant/learn', data),
+  mappings: (companyId) => api.get('/ai-assistant/mappings', { params: { company_id: companyId } }),
+};
+

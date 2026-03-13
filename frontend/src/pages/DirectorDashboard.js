@@ -20,6 +20,7 @@ import ExecutiveReport from './director/ExecutiveReport';
 import DailySummaryPage from './director/DailySummaryPage';
 import RoleManagementPage from './director/RoleManagementPage';
 import ReconciliationPage from './director/ReconciliationPage';
+import AiAssistantPage from './director/AiAssistantPage';
 
 const StatCard = ({ icon: Icon, title, value, description, color }) => (
   <Card className="hover:shadow-md transition-shadow">
@@ -429,6 +430,7 @@ export default function DirectorDashboard() {
         <Route path="daily-summary" element={<DailySummaryPage />} />
         <Route path="roles" element={<RoleManagementPage />} />
         <Route path="reconciliation" element={<ReconciliationPage />} />
+        <Route path="ai-assistant" element={<AiAssistantPage />} />
       </Routes>
     </Layout>
   );

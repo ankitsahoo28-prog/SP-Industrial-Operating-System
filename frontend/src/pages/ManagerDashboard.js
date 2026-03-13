@@ -11,6 +11,7 @@ import ReportsPage from './manager/ReportsPage';
 import IndentsPage from './manager/IndentsPage';
 import AccountingPage from './manager/AccountingPage';
 import InventoryPage from './director/InventoryPage';
+import AiAssistantPage from './director/AiAssistantPage';
 
 const StatCard = ({ icon: Icon, title, value, description, color }) => (
   <Card className="hover:shadow-md transition-shadow">
@@ -198,6 +199,7 @@ export default function ManagerDashboard() {
         <Route path="indents" element={<IndentsPage />} />
         <Route path="accounting" element={<AccountingPage />} />
         <Route path="inventory" element={<InventoryPage />} />
+        <Route path="ai-assistant" element={<AiAssistantPage />} />
       </Routes>
     </Layout>
   );

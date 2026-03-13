@@ -20,7 +20,8 @@ import {
   BarChart3,
   Calendar,
   Shield,
-  ArrowLeftRight
+  ArrowLeftRight,
+  Bot
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -57,6 +58,7 @@ export const Layout = ({ children, role }) => {
         { icon: Shield, label: 'Roles', path: '/roles', permission: 'manage_roles' },
         { icon: History, label: t('audit_trail'), path: '/audit-log', permission: 'view_audit_log' },
         { icon: Settings, label: t('settings'), path: '/settings', permission: 'view_settings' },
+        { icon: Bot, label: 'AI Assistant', path: '/ai-assistant', permission: 'view_accounting' },
       ];
     }
 
@@ -70,6 +72,7 @@ export const Layout = ({ children, role }) => {
       { icon: Package, label: t('indents'), path: '/indents', permission: 'manage_indents' },
       { icon: DollarSign, label: t('accounting'), path: '/accounting', permission: 'view_accounting' },
       { icon: Warehouse, label: t('inventory'), path: '/inventory', permission: 'view_inventory' },
+      { icon: Bot, label: 'AI Assistant', path: '/ai-assistant', permission: 'view_accounting' },
     ];
     return allItems;
   };

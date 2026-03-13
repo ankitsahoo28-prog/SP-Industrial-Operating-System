@@ -9,6 +9,7 @@ import TasksPage from './ground-staff/TasksPage';
 import ReportsPage from './ground-staff/ReportsPage';
 import AccountingPage from './manager/AccountingPage';
 import InventoryPage from './director/InventoryPage';
+import AiAssistantPage from './director/AiAssistantPage';
 import IndentsPage from './manager/IndentsPage';
 import TrackingPage from './manager/TrackingPage';
 import TeamPage from './manager/TeamPage';
@@ -172,6 +173,7 @@ export default function GroundStaffDashboard() {
         <Route path="indents" element={<IndentsPage />} />
         <Route path="tracking" element={<TrackingPage />} />
         <Route path="team" element={<TeamPage />} />
+        <Route path="ai-assistant" element={<AiAssistantPage />} />
       </Routes>
     </Layout>
   );
