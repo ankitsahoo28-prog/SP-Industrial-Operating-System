@@ -36,12 +36,12 @@ api_router.include_router(auth_router)
 api_router.include_router(companies_router)
 api_router.include_router(tasks_router)
 api_router.include_router(accounting_router)
-api_router.include_router(inventory_router)
 api_router.include_router(director_router)
 api_router.include_router(uploads_router)
 api_router.include_router(odoo_accounting_router)
 api_router.include_router(ai_accounting_router)
 api_router.include_router(odoo_inventory_router)
+api_router.include_router(inventory_router)
 
 app.include_router(api_router)
 
