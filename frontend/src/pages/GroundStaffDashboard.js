@@ -8,7 +8,7 @@ import { ClipboardList, MapPin, FileText, Clock, CheckCircle2 } from 'lucide-rea
 import TasksPage from './ground-staff/TasksPage';
 import ReportsPage from './ground-staff/ReportsPage';
 import AccountingPage from './manager/AccountingPage';
-import InventoryPage from './manager/InventoryPage';
+import InventoryPage from './director/InventoryPage';
 import IndentsPage from './manager/IndentsPage';
 import TrackingPage from './manager/TrackingPage';
 import TeamPage from './manager/TeamPage';
