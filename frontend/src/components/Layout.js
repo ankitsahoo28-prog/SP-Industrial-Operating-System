@@ -37,13 +37,12 @@ export const Layout = ({ children, role }) => {
   const { lang, setLang, t } = useI18n();
 
   const getNavItems = () => {
-    const base = [
-      { icon: LayoutDashboard, label: t('dashboard'), path: '', permission: 'view_dashboard' },
-    ];
+    // Dashboard is always visible for all logged-in users
+    const dashboard = { icon: LayoutDashboard, label: t('dashboard'), path: '', permission: null };
 
     if (role === 'director') {
       return [
-        ...base,
+        dashboard,
         { icon: Calendar, label: 'Daily Summary', path: '/daily-summary', permission: 'view_daily_summary' },
         { icon: Building2, label: 'Companies', path: '/companies', permission: 'manage_companies' },
         { icon: BarChart3, label: 'Executive', path: '/executive', permission: 'view_executive' },
@@ -59,27 +58,24 @@ export const Layout = ({ children, role }) => {
         { icon: History, label: t('audit_trail'), path: '/audit-log', permission: 'view_audit_log' },
         { icon: Settings, label: t('settings'), path: '/settings', permission: 'view_settings' },
       ];
-    } else if (role === 'manager') {
-      return [
-        ...base,
-        { icon: Users, label: t('my_team'), path: '/team', permission: 'manage_users' },
-        { icon: ClipboardList, label: t('tasks'), path: '/tasks', permission: 'manage_tasks' },
-        { icon: MapPin, label: t('tracking'), path: '/tracking', permission: 'view_tracking' },
-        { icon: FileText, label: t('reports'), path: '/reports', permission: 'view_reports' },
-        { icon: Package, label: t('indents'), path: '/indents', permission: 'manage_indents' },
-        { icon: DollarSign, label: t('accounting'), path: '/accounting', permission: 'view_accounting' },
-        { icon: Warehouse, label: t('inventory'), path: '/inventory', permission: 'view_inventory' },
-      ];
-    } else {
-      return [
-        ...base,
-        { icon: ClipboardList, label: t('my_tasks'), path: '/tasks', permission: 'manage_tasks' },
-        { icon: FileText, label: t('reports'), path: '/reports', permission: 'view_reports' },
-      ];
     }
+
+    // For manager and ground_staff: build from ALL possible items, filtered by permission
+    const allItems = [
+      dashboard,
+      { icon: Users, label: role === 'manager' ? t('my_team') : t('users'), path: '/team', permission: 'manage_users' },
+      { icon: ClipboardList, label: role === 'ground_staff' ? t('my_tasks') : t('tasks'), path: '/tasks', permission: 'manage_tasks' },
+      { icon: MapPin, label: t('tracking'), path: '/tracking', permission: 'view_tracking' },
+      { icon: FileText, label: t('reports'), path: '/reports', permission: 'view_reports' },
+      { icon: Package, label: t('indents'), path: '/indents', permission: 'manage_indents' },
+      { icon: DollarSign, label: t('accounting'), path: '/accounting', permission: 'view_accounting' },
+      { icon: Warehouse, label: t('inventory'), path: '/inventory', permission: 'view_inventory' },
+    ];
+    return allItems;
   };
 
-  const navItems = getNavItems().filter(item => hasPermission(item.permission));
+  // Filter: null permission = always show, otherwise check hasPermission
+  const navItems = getNavItems().filter(item => item.permission === null || hasPermission(item.permission));
   const basePath = `/${role === 'ground_staff' ? 'ground-staff' : role}`;
 
   const handleLogout = () => {

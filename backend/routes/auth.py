@@ -43,9 +43,10 @@ async def _get_user_permissions(user_doc: dict) -> list:
     # Default permissions for managers and ground staff (if no custom role)
     if user_doc.get('role') == 'manager':
         return ["view_dashboard", "view_inventory", "edit_inventory", "view_accounting",
-                "edit_accounting", "manage_tasks", "manage_indents", "view_reports", "create_reports"]
+                "edit_accounting", "manage_tasks", "manage_users", "manage_indents",
+                "view_reports", "create_reports", "view_tracking"]
     # Ground staff defaults
-    return ["view_dashboard", "manage_tasks", "view_reports"]
+    return ["view_dashboard", "manage_tasks", "view_reports", "view_tracking"]
 
 
 @router.post("/auth/login")

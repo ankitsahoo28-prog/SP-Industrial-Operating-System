@@ -7,6 +7,11 @@ import { useAuth } from '@/context/AuthContext';
 import { ClipboardList, MapPin, FileText, Clock, CheckCircle2 } from 'lucide-react';
 import TasksPage from './ground-staff/TasksPage';
 import ReportsPage from './ground-staff/ReportsPage';
+import AccountingPage from './manager/AccountingPage';
+import InventoryPage from './manager/InventoryPage';
+import IndentsPage from './manager/IndentsPage';
+import TrackingPage from './manager/TrackingPage';
+import TeamPage from './manager/TeamPage';
 
 const DashboardHome = () => {
   const { user } = useAuth();
@@ -162,6 +167,11 @@ export default function GroundStaffDashboard() {
         <Route index element={<DashboardHome />} />
         <Route path="tasks" element={<TasksPage />} />
         <Route path="reports" element={<ReportsPage />} />
+        <Route path="accounting" element={<AccountingPage />} />
+        <Route path="inventory" element={<InventoryPage />} />
+        <Route path="indents" element={<IndentsPage />} />
+        <Route path="tracking" element={<TrackingPage />} />
+        <Route path="team" element={<TeamPage />} />
       </Routes>
     </Layout>
   );

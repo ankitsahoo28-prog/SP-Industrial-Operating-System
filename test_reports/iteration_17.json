@@ -1,0 +1,96 @@
+{
+  "summary": "Iteration 17 - BUG RETEST: Custom role nav items fix verified. Custom role user (arun@sp.com) now sees Dashboard, Accounting, Inventory in sidebar. Manager and Ground Staff navs working with location tracking 'Active' (no toggle). NEW BUG FOUND: Products and Config tabs crash with 'categories.map is not a function' - backend /api/inv/categories returns dict instead of array.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "GET /api/inv/categories",
+        "issue": "Returns dictionary (business type structure) instead of array. Frontend ProductsTab.js and InvConfigTab.js call categories.map() expecting array, causing TypeError crash",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "ProductsTab.js (line 73)",
+        "issue": "TypeError: categories.map is not a function - crashes when clicking Products tab in Director Inventory",
+        "selector": "button:has-text('Products')",
+        "priority": "HIGH"
+      },
+      {
+        "component": "InvConfigTab.js (line ~164341)",
+        "issue": "Same categories.map error - crashes when clicking Config tab in Director Inventory",
+        "selector": "button:has-text('Config')",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_17.json"],
+  "action_items": [
+    "CRITICAL: Fix /api/inv/categories to return an array of category objects (e.g., [{id, name, ...}]) instead of BUSINESS_ITEM_CATEGORIES dictionary",
+    "Alternative: Update ProductsTab.js and InvConfigTab.js to handle the dictionary response and convert to array, or initialize categories state to empty array if API returns non-array"
+  ],
+  "critical_code_review_comments": [
+    "BUG: ProductsTab.js line 31 does setCategories(c.data) where c.data is a dictionary from /api/inv/categories, then line 73 calls categories.map() causing crash",
+    "Same pattern affects InvConfigTab.js",
+    "Fix suggestion: Either backend returns [{id, name}] array OR frontend checks Array.isArray(c.data) before using .map()"
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% - Login, permissions all working correctly",
+    "frontend": "75% - Custom role fix verified, but Inventory Products/Config tabs broken"
+  },
+  "test_credentials": {
+    "director": "director@sp.com / password123",
+    "manager": "manager@sp.com / password123",
+    "staff": "staff@sp.com / password123",
+    "custom_role_user": "arun@sp.com / password123"
+  },
+  "seed_data_creation": "None",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Custom role user nav items now working. Products tab and Config tab in Director Inventory crash due to categories.map not being a function. The /api/inv/categories endpoint returns BUSINESS_ITEM_CATEGORIES dict instead of array. Other inventory tabs (Overview, Moves, Adjust, Warehouses, Reorder, Valuation) work fine.",
+  "verified_features": {
+    "custom_role_user_arun": {
+      "expected": ["Dashboard", "Accounting", "Inventory"],
+      "actual": ["Dashboard", "Accounting", "Inventory"],
+      "status": "FIXED - Bug from iteration_16 resolved"
+    },
+    "manager": {
+      "nav_items": ["Dashboard", "My Team", "Tasks", "Tracking", "Reports", "Indents", "Accounting", "Inventory"],
+      "location_tracking": "Active (always on, no toggle)",
+      "permissions_verified": ["manage_users", "view_tracking"]
+    },
+    "ground_staff": {
+      "nav_items": ["Dashboard", "My Tasks", "Tracking", "Reports"],
+      "location_tracking": "Active (always on, no toggle)"
+    },
+    "director_inventory": {
+      "tabs_count": 8,
+      "tabs_list": ["Overview", "Products", "Moves", "Adjust", "Warehouses", "Reorder", "Valuation", "Config"],
+      "working_tabs": ["Overview", "Moves", "Adjust", "Warehouses", "Reorder", "Valuation"],
+      "broken_tabs": ["Products", "Config"]
+    },
+    "director_roles": {
+      "permissions_count": 19,
+      "permissions_list": ["View Dashboard", "View Inventory", "Edit Inventory", "View Accounting", "Edit Accounting", "Manage Tasks", "Manage Users / Team", "Manage Indents", "View Reports", "Create Reports", "Manage Companies", "View Audit Log", "View Tracking", "Reconciliation", "Manage Roles", "View Settings", "Executive Dashboard", "Daily Summary", "View Payroll"]
+    }
+  },
+  "bugs_found": [
+    {
+      "severity": "HIGH",
+      "issue": "Products tab and Config tab crash with TypeError: categories.map is not a function",
+      "root_cause": "Backend /api/inv/categories returns BUSINESS_ITEM_CATEGORIES dictionary but frontend expects array for .map() call",
+      "affected_files": ["/app/frontend/src/pages/director/inventory/ProductsTab.js", "/app/frontend/src/pages/director/inventory/InvConfigTab.js", "/app/backend/routes/inventory.py (line 110-112)"],
+      "reproduction_steps": "1. Login as director@sp.com. 2. Navigate to Inventory. 3. Click Products tab. 4. Error overlay appears: categories.map is not a function",
+      "suggested_fix": "Option A: Change backend /api/inv/categories to query db.inv_categories and return array. Option B: In ProductsTab.js line 31, add: setCategories(Array.isArray(c.data) ? c.data : [])"
+    }
+  ],
+  "mocked_apis": {
+    "has_mocked_apis": false,
+    "mocked_apis_list": []
+  }
+}
