@@ -7,11 +7,11 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { settingsApi, authApi } from '@/lib/api';
-import { LogIn, UserPlus, KeyRound, ArrowLeft, Loader2 } from 'lucide-react';
+import { settingsApi, authApi, whatsappApi } from '@/lib/api';
+import { LogIn, UserPlus, KeyRound, ArrowLeft, Loader2, MessageCircle } from 'lucide-react';
 
 export default function Login() {
-  const [mode, setMode] = useState('login'); // login, register, forgot, reset
+  const [mode, setMode] = useState('login'); // login, register, forgot, reset, wa_forgot, wa_reset
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -20,13 +20,17 @@ export default function Login() {
   const [businessType, setBusinessType] = useState('');
   const [resetToken, setResetToken] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [waOtp, setWaOtp] = useState('');
+  const [waPhone, setWaPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [appSettings, setAppSettings] = useState(null);
+  const [waEnabled, setWaEnabled] = useState(false);
   const { user, login } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     settingsApi.get().then(r => setAppSettings(r.data)).catch(() => {});
+    whatsappApi.status().then(r => setWaEnabled(r.data?.configured)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -97,6 +101,30 @@ export default function Login() {
     } finally { setLoading(false); }
   };
 
+  const handleWaForgot = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await whatsappApi.forgotPassword(waPhone);
+      toast.success('OTP sent to your WhatsApp number!');
+      setMode('wa_reset');
+    } catch { toast.error('Failed to send OTP'); }
+    finally { setLoading(false); }
+  };
+
+  const handleWaReset = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await whatsappApi.resetPassword({ phone: waPhone, code: waOtp, new_password: newPassword });
+      toast.success('Password reset successful! You can now log in.');
+      setMode('login');
+      setWaPhone(''); setWaOtp(''); setNewPassword('');
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Reset failed');
+    } finally { setLoading(false); }
+  };
+
   const logoUrl = appSettings?.logo_url || '/sp-logo.png';
   const bgVideo = appSettings?.bg_video_url || '/bg-video.mp4';
 
@@ -121,12 +149,16 @@ export default function Login() {
               {mode === 'register' && 'Create Account'}
               {mode === 'forgot' && 'Forgot Password'}
               {mode === 'reset' && 'Reset Password'}
+              {mode === 'wa_forgot' && 'Reset via WhatsApp'}
+              {mode === 'wa_reset' && 'Enter OTP'}
             </CardTitle>
             <CardDescription>
               {mode === 'login' && (appSettings?.tagline || 'Sign in to access your dashboard')}
               {mode === 'register' && 'Your account will need Director approval'}
               {mode === 'forgot' && 'Enter your email to receive a reset link'}
               {mode === 'reset' && 'Enter the token and your new password'}
+              {mode === 'wa_forgot' && 'Enter your registered WhatsApp number'}
+              {mode === 'wa_reset' && 'Enter the OTP sent to your WhatsApp'}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -195,6 +227,12 @@ export default function Login() {
                   {loading ? <Loader2 size={16} className="animate-spin mr-2" /> : <KeyRound size={16} className="mr-2" />}
                   Send Reset Token
                 </Button>
+                {waEnabled && (
+                  <button type="button" className="w-full text-sm text-green-700 hover:underline flex items-center justify-center gap-1"
+                    onClick={() => setMode('wa_forgot')} data-testid="wa-forgot-link">
+                    <MessageCircle size={14} />Reset via WhatsApp instead
+                  </button>
+                )}
                 <button type="button" className="text-sm text-primary hover:underline flex items-center gap-1" onClick={() => setMode('login')}><ArrowLeft size={14} />Back to Sign In</button>
               </form>
             )}
@@ -209,6 +247,35 @@ export default function Login() {
                   Reset Password
                 </Button>
                 <button type="button" className="text-sm text-primary hover:underline flex items-center gap-1" onClick={() => setMode('login')}><ArrowLeft size={14} />Back to Sign In</button>
+              </form>
+            )}
+
+            {/* WHATSAPP FORGOT PASSWORD */}
+            {mode === 'wa_forgot' && (
+              <form onSubmit={handleWaForgot} className="space-y-4">
+                <div className="space-y-2">
+                  <Label>WhatsApp Number</Label>
+                  <Input value={waPhone} onChange={e => setWaPhone(e.target.value)} placeholder="+919876543210" required data-testid="wa-phone-input" />
+                  <p className="text-xs text-muted-foreground">Include country code (e.g., +91 for India)</p>
+                </div>
+                <Button type="submit" className="w-full bg-green-600 hover:bg-green-700" disabled={loading} data-testid="wa-forgot-submit">
+                  {loading ? <Loader2 size={16} className="animate-spin mr-2" /> : <MessageCircle size={16} className="mr-2" />}
+                  Send OTP via WhatsApp
+                </Button>
+                <button type="button" className="text-sm text-primary hover:underline flex items-center gap-1" onClick={() => setMode('forgot')}><ArrowLeft size={14} />Use email instead</button>
+              </form>
+            )}
+
+            {/* WHATSAPP OTP RESET */}
+            {mode === 'wa_reset' && (
+              <form onSubmit={handleWaReset} className="space-y-4">
+                <div className="space-y-2"><Label>OTP Code</Label><Input value={waOtp} onChange={e => setWaOtp(e.target.value)} placeholder="6-digit OTP" maxLength={6} required data-testid="wa-otp-input" /></div>
+                <div className="space-y-2"><Label>New Password</Label><Input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} required data-testid="wa-new-password" /></div>
+                <Button type="submit" className="w-full bg-green-600 hover:bg-green-700" disabled={loading} data-testid="wa-reset-submit">
+                  {loading ? <Loader2 size={16} className="animate-spin mr-2" /> : <KeyRound size={16} className="mr-2" />}
+                  Reset Password
+                </Button>
+                <button type="button" className="text-sm text-primary hover:underline flex items-center gap-1" onClick={() => setMode('wa_forgot')}><ArrowLeft size={14} />Resend OTP</button>
               </form>
             )}
           </CardContent>

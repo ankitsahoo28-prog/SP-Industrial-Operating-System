@@ -7,9 +7,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
-import { roleApi } from '@/lib/api';
+import { roleApi, roleTemplateApi } from '@/lib/api';
 import { toast } from 'sonner';
-import { Shield, Plus, Trash2, Edit, Loader2, Lock } from 'lucide-react';
+import { Shield, Plus, Trash2, Edit, Loader2, Lock, Copy } from 'lucide-react';
 
 const PERMISSION_LABELS = {
   view_dashboard: 'View Dashboard',
@@ -36,6 +36,7 @@ const PERMISSION_LABELS = {
 export default function RoleManagementPage() {
   const [roles, setRoles] = useState([]);
   const [permissions, setPermissions] = useState([]);
+  const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRole, setEditingRole] = useState(null);
@@ -45,11 +46,23 @@ export default function RoleManagementPage() {
 
   const fetchData = async () => {
     try {
-      const [rolesRes, permsRes] = await Promise.all([roleApi.getAll(), roleApi.getPermissions()]);
+      const [rolesRes, permsRes, tmplRes] = await Promise.all([
+        roleApi.getAll(), roleApi.getPermissions(),
+        roleTemplateApi.list().catch(() => ({ data: [] })),
+      ]);
       setRoles(rolesRes.data);
       setPermissions(permsRes.data);
+      setTemplates(tmplRes.data || []);
     } catch { toast.error('Failed to load roles'); }
     finally { setLoading(false); }
+  };
+
+  const createFromTemplate = async (name) => {
+    try {
+      await roleTemplateApi.createFromTemplate(name);
+      toast.success(`Role "${name}" created from template`);
+      fetchData();
+    } catch (err) { toast.error(err.response?.data?.detail || 'Failed to create from template'); }
   };
 
   const togglePermission = (perm) => {
@@ -133,6 +146,26 @@ export default function RoleManagementPage() {
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* Role Templates */}
+      {templates.length > 0 && (
+        <Card data-testid="role-templates-section">
+          <CardHeader className="py-3">
+            <CardTitle className="text-sm flex items-center gap-2"><Copy size={16} />Quick Create from Templates</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {templates.map(t => (
+                <Button key={t.name} variant="outline" size="sm" onClick={() => createFromTemplate(t.name)}
+                  data-testid={`template-${t.name.toLowerCase().replace(/\s/g, '-')}`}
+                  title={t.description}>
+                  <Plus size={14} className="mr-1" />{t.name}
+                </Button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {roles.length === 0 ? (
         <Card><CardContent className="p-12 text-center"><Shield size={48} className="mx-auto text-muted-foreground mb-4" /><p className="text-muted-foreground">No custom roles defined yet. Create your first role to get started.</p></CardContent></Card>

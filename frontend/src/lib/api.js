@@ -198,6 +198,8 @@ export const odooApi = {
     cashFlow: (params) => api.get('/acc/reports/cash-flow', { params }),
     taxReport: (params) => api.get('/acc/reports/tax-report', { params }),
     partnerLedger: (partnerId, params) => api.get(`/acc/reports/partner-ledger/${partnerId}`, { params }),
+    gstr1: (params) => api.get('/acc/reports/gstr1', { params }),
+    gstr3b: (params) => api.get('/acc/reports/gstr3b', { params }),
   },
   // AI Features
   ai: {
@@ -242,5 +244,22 @@ export const inventoryApi = {
   lots: (params) => api.get('/inv/lots', { params }),
   valuation: (params) => api.get('/inv/valuation', { params }),
   quants: (params) => api.get('/inv/quants', { params }),
+};
+
+
+// ======== WHATSAPP API ========
+export const whatsappApi = {
+  status: () => api.get('/whatsapp/status'),
+  settings: () => api.get('/whatsapp/settings'),
+  updateSettings: (data) => api.put('/whatsapp/settings', data),
+  forgotPassword: (phone) => api.post('/whatsapp/forgot-password', { phone }),
+  resetPassword: (data) => api.post('/whatsapp/reset-password', data),
+  send: (data) => api.post('/whatsapp/send', data),
+};
+
+// ======== ROLE TEMPLATES API ========
+export const roleTemplateApi = {
+  list: () => api.get('/job-roles/templates'),
+  createFromTemplate: (name) => api.post(`/job-roles/from-template?template_name=${encodeURIComponent(name)}`),
 };
 

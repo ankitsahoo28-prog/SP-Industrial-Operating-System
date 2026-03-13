@@ -55,7 +55,7 @@ async def get_inventory(current_user: dict = Depends(get_current_user)):
 
 # --- Comprehensive Inventory ---
 
-@router.get("/inv/dashboard")
+@router.get("/legacy-inv/dashboard")
 async def inventory_dashboard(company_id: Optional[str] = None, current_user: dict = Depends(get_current_user)):
     if current_user['role'] == UserRole.GROUND_STAFF:
         raise HTTPException(status_code=403, detail="Access denied")
@@ -65,7 +65,7 @@ async def inventory_dashboard(company_id: Optional[str] = None, current_user: di
     return await get_inventory_dashboard(db, resolved_cid)
 
 
-@router.get("/inv/items")
+@router.get("/legacy-inv/items")
 async def get_inventory_items(business_type: Optional[str] = None, category: Optional[str] = None,
                               company_id: Optional[str] = None, current_user: dict = Depends(get_current_user)):
     resolved_cid = await resolve_company_id(current_user['user_id'], current_user['role'], company_id)
@@ -85,7 +85,7 @@ async def get_inventory_items(business_type: Optional[str] = None, category: Opt
     return items
 
 
-@router.post("/inv/items")
+@router.post("/legacy-inv/items")
 async def create_inventory_item_new(data: InventoryItemCreateNew, company_id: Optional[str] = None,
                                     current_user: dict = Depends(get_current_user)):
     if current_user['role'] == UserRole.GROUND_STAFF:
@@ -107,12 +107,12 @@ async def create_inventory_item_new(data: InventoryItemCreateNew, company_id: Op
     return item
 
 
-@router.get("/inv/categories")
+@router.get("/legacy-inv/categories")
 async def get_inventory_categories(current_user: dict = Depends(get_current_user)):
     return BUSINESS_ITEM_CATEGORIES
 
 
-@router.post("/inv/stock-movement")
+@router.post("/legacy-inv/stock-movement")
 async def api_stock_movement(data: StockMovementRequest, company_id: Optional[str] = None,
                              current_user: dict = Depends(get_current_user)):
     resolved_cid = await resolve_company_id(current_user['user_id'], current_user['role'], company_id)
@@ -148,7 +148,7 @@ async def api_stock_movement(data: StockMovementRequest, company_id: Optional[st
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/inv/movements")
+@router.get("/legacy-inv/movements")
 async def get_stock_movements(business_type: Optional[str] = None, item_id: Optional[str] = None,
                               reference_type: Optional[str] = None, company_id: Optional[str] = None,
                               limit: int = 200, current_user: dict = Depends(get_current_user)):
@@ -165,7 +165,7 @@ async def get_stock_movements(business_type: Optional[str] = None, item_id: Opti
     return movements
 
 
-@router.post("/inv/production")
+@router.post("/legacy-inv/production")
 async def api_production(data: ProductionRequest, current_user: dict = Depends(get_current_user)):
     if current_user['role'] == UserRole.GROUND_STAFF:
         raise HTTPException(status_code=403, detail="Access denied")
@@ -183,7 +183,7 @@ async def api_production(data: ProductionRequest, current_user: dict = Depends(g
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/inv/productions")
+@router.get("/legacy-inv/productions")
 async def get_productions(business_type: Optional[str] = None, current_user: dict = Depends(get_current_user)):
     query = {}
     biz = business_type
@@ -195,7 +195,7 @@ async def get_productions(business_type: Optional[str] = None, current_user: dic
     return records
 
 
-@router.post("/inv/transfer")
+@router.post("/legacy-inv/transfer")
 async def api_transfer(data: TransferRequest, current_user: dict = Depends(get_current_user)):
     if current_user['role'] != UserRole.DIRECTOR:
         raise HTTPException(status_code=403, detail="Only directors can transfer between businesses")
@@ -208,7 +208,7 @@ async def api_transfer(data: TransferRequest, current_user: dict = Depends(get_c
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/inv/transfers")
+@router.get("/legacy-inv/transfers")
 async def get_transfers(current_user: dict = Depends(get_current_user)):
     if current_user['role'] != UserRole.DIRECTOR:
         raise HTTPException(status_code=403, detail="Only directors can view transfers")
@@ -216,7 +216,7 @@ async def get_transfers(current_user: dict = Depends(get_current_user)):
     return records
 
 
-@router.post("/inv/lidar-scan")
+@router.post("/legacy-inv/lidar-scan")
 async def api_lidar_scan(data: LidarScanRequest, current_user: dict = Depends(get_current_user)):
     biz = current_user.get('business_type')
     if current_user['role'] == UserRole.DIRECTOR:
@@ -231,7 +231,7 @@ async def api_lidar_scan(data: LidarScanRequest, current_user: dict = Depends(ge
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/inv/lidar-scans")
+@router.get("/legacy-inv/lidar-scans")
 async def get_lidar_scans(business_type: Optional[str] = None, current_user: dict = Depends(get_current_user)):
     query = {}
     biz = business_type
@@ -243,7 +243,7 @@ async def get_lidar_scans(business_type: Optional[str] = None, current_user: dic
     return scans
 
 
-@router.get("/inv/low-stock")
+@router.get("/legacy-inv/low-stock")
 async def api_low_stock(business_type: Optional[str] = None, company_id: Optional[str] = None,
                         current_user: dict = Depends(get_current_user)):
     resolved_cid = await resolve_company_id(current_user['user_id'], current_user['role'], company_id)
@@ -256,14 +256,14 @@ async def api_low_stock(business_type: Optional[str] = None, company_id: Optiona
     return await get_low_stock_alerts(db, biz)
 
 
-@router.get("/inv/dip-history")
+@router.get("/legacy-inv/dip-history")
 async def api_dip_history(current_user: dict = Depends(get_current_user)):
     return await get_petrol_pump_dip_history(db)
 
 
 # --- AI Inventory Assistant ---
 
-@router.post("/inv/ai-assistant")
+@router.post("/legacy-inv/ai-assistant")
 async def ai_inventory_assistant(req: AiInventoryRequest, current_user: dict = Depends(get_current_user)):
     if current_user['role'] == UserRole.GROUND_STAFF:
         raise HTTPException(status_code=403, detail="Access denied")
@@ -329,7 +329,7 @@ RESPOND IN THIS EXACT JSON FORMAT:
                 "create_new_item": False, "new_item_suggestion": None}
 
 
-@router.post("/inv/ai-execute")
+@router.post("/legacy-inv/ai-execute")
 async def ai_inventory_execute(movements: List[Dict[str, Any]], current_user: dict = Depends(get_current_user)):
     if current_user['role'] == UserRole.GROUND_STAFF:
         raise HTTPException(status_code=403, detail="Access denied")

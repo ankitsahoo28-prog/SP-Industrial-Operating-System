@@ -346,6 +346,65 @@ async def get_available_permissions(current_user: dict = Depends(get_current_use
     return AVAILABLE_PERMISSIONS
 
 
+# --- Role Templates ---
+ROLE_TEMPLATES = [
+    {
+        "name": "Accountant",
+        "description": "Full accounting access with reports",
+        "permissions": ["view_dashboard", "view_accounting", "edit_accounting", "view_reports", "create_reports", "view_reconciliation"],
+    },
+    {
+        "name": "Warehouse Manager",
+        "description": "Full inventory and warehouse management",
+        "permissions": ["view_dashboard", "view_inventory", "edit_inventory", "manage_indents", "view_reports", "create_reports"],
+    },
+    {
+        "name": "Field Supervisor",
+        "description": "Task management with team oversight",
+        "permissions": ["view_dashboard", "manage_tasks", "manage_users", "view_tracking", "view_reports", "create_reports"],
+    },
+    {
+        "name": "Sales Manager",
+        "description": "Invoicing, partners, and reporting",
+        "permissions": ["view_dashboard", "view_accounting", "edit_accounting", "view_reports", "create_reports", "view_inventory"],
+    },
+    {
+        "name": "Read-Only Auditor",
+        "description": "View-only access to all sections",
+        "permissions": ["view_dashboard", "view_accounting", "view_inventory", "view_reports", "view_audit_log", "view_tracking", "view_reconciliation"],
+    },
+]
+
+
+@router.get("/job-roles/templates")
+async def get_role_templates(current_user: dict = Depends(get_current_user)):
+    if current_user['role'] != UserRole.DIRECTOR:
+        raise HTTPException(status_code=403, detail="Directors only")
+    return ROLE_TEMPLATES
+
+
+@router.post("/job-roles/from-template")
+async def create_role_from_template(template_name: str, current_user: dict = Depends(get_current_user)):
+    if current_user['role'] != UserRole.DIRECTOR:
+        raise HTTPException(status_code=403, detail="Directors only")
+    tmpl = next((t for t in ROLE_TEMPLATES if t["name"] == template_name), None)
+    if not tmpl:
+        raise HTTPException(status_code=404, detail="Template not found")
+    role_doc = {
+        "id": str(uuid.uuid4()),
+        "name": tmpl["name"],
+        "description": tmpl["description"],
+        "permissions": tmpl["permissions"],
+        "company_id": current_user.get("company_ids", [""])[0] if current_user.get("company_ids") else "",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.job_roles.insert_one(role_doc)
+    role_doc.pop("_id", None)
+    return role_doc
+
+
+
+
 # --- Reconciliation ---
 
 @router.get("/reconciliation")

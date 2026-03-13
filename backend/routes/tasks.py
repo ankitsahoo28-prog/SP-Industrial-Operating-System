@@ -95,6 +95,10 @@ async def create_task(task_data: TaskCreate, company_id: Optional[str] = None,
             await send_task_assignment_email(assigned_user['email'], task.title, assigner.get('name', 'Manager'), deadline_str)
         await notify_user(task.assigned_to, "New Task Assigned",
                           f"{assigner.get('name','Manager')} assigned you: {task.title}", "task", "/tasks")
+        # WhatsApp notification
+        if assigned_user and assigned_user.get('phone') and assigned_user.get('whatsapp_notifications', True):
+            from services.whatsapp import send_task_notification as wa_task_notify
+            await wa_task_notify(assigned_user['phone'], task.title, assigner.get('name', 'Manager'))
     except Exception as e:
         logger.error(f"Failed to send task notification: {str(e)}")
     return task
@@ -128,6 +132,10 @@ async def update_task(task_id: str, update_data: TaskUpdate, current_user: dict 
                 await send_task_update_email(assigner['email'], task_doc.get('title', 'Task'), updater_name, update_dict['status'])
             await notify_user(task_doc['assigned_by'], "Task Updated",
                               f"{updater_name} changed '{task_doc.get('title','')}' to {new_status}", "task", "/tasks")
+            # WhatsApp notification for task status update
+            if assigner and assigner.get('phone') and assigner.get('whatsapp_notifications', True):
+                from services.whatsapp import send_task_status_update as wa_status
+                await wa_status(assigner['phone'], task_doc.get('title', 'Task'), new_status, updater_name)
     except Exception as e:
         logger.error(f"Task update notification failed: {e}")
     return Task(**updated_doc)

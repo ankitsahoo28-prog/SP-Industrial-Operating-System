@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { settingsApi, uploadApi } from '@/lib/api';
 import { API } from '@/lib/api';
 import { toast } from 'sonner';
-import { Settings, Save, Palette, Type, Image, Film, Loader2, Upload, X, CheckCircle } from 'lucide-react';
+import { Settings, Save, Palette, Type, Image, Film, Loader2, Upload, X, CheckCircle, MessageCircle } from 'lucide-react';
 
 function FileUploadField({ label, description, currentUrl, onUpload, accept, category, testId }) {
   const inputRef = useRef(null);
@@ -174,6 +174,33 @@ export default function SettingsPage() {
         {saving ? <Loader2 size={16} className="animate-spin mr-2" /> : <Save size={16} className="mr-2" />}
         Save Settings
       </Button>
+
+      {/* WhatsApp Integration */}
+      <Card data-testid="whatsapp-settings-card">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><MessageCircle size={20} />WhatsApp Notifications</CardTitle>
+          <CardDescription>Configure WhatsApp for task notifications, password resets, and alerts</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="p-4 bg-muted rounded-xl text-sm space-y-2">
+            <p className="font-medium">Setup Instructions:</p>
+            <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+              <li>Sign up at <a href="https://twilio.com" target="_blank" rel="noreferrer" className="text-primary underline">Twilio.com</a></li>
+              <li>Enable WhatsApp Sandbox or get an approved number</li>
+              <li>Add the following to your backend .env file:</li>
+            </ol>
+            <code className="block mt-2 p-2 bg-background rounded text-xs font-mono">
+              TWILIO_ACCOUNT_SID=your_sid<br/>
+              TWILIO_AUTH_TOKEN=your_token<br/>
+              TWILIO_WHATSAPP_NUMBER=whatsapp:+14155238886
+            </code>
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <div className="w-2 h-2 rounded-full bg-muted animate-pulse" id="wa-status-dot" />
+            <span className="text-muted-foreground" data-testid="wa-integration-status">Checking status...</span>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

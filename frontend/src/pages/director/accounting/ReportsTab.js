@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { odooApi } from '@/lib/api';
 import { toast } from 'sonner';
-import { Scale, TrendingUp, BarChart3, Clock, AlertTriangle, ArrowUpDown, Calculator, BookOpen } from 'lucide-react';
+import { Scale, TrendingUp, BarChart3, Clock, AlertTriangle, ArrowUpDown, Calculator, BookOpen, FileSpreadsheet, Receipt } from 'lucide-react';
 import { fmt, fmtd, LoadingSpinner, cleanParams } from './helpers';
 
 export function ReportsTab({ companyId }) {
@@ -16,11 +16,14 @@ export function ReportsTab({ companyId }) {
   const [loading, setLoading] = useState(false);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [gstMonth, setGstMonth] = useState(String(new Date().getMonth() + 1));
+  const [gstYear, setGstYear] = useState(String(new Date().getFullYear()));
 
   const loadReport = useCallback(async () => {
     setLoading(true); setData(null);
     try {
       const params = cleanParams({ company_id: companyId, date_from: dateFrom, date_to: dateTo });
+      const gstParams = cleanParams({ company_id: companyId, month: gstMonth, year: gstYear });
       let res;
       switch (reportType) {
         case 'trial-balance': res = await odooApi.reports.trialBalance(params); break;
@@ -31,12 +34,14 @@ export function ReportsTab({ companyId }) {
         case 'aged-payables': res = await odooApi.reports.agedPayables(params); break;
         case 'cash-flow': res = await odooApi.reports.cashFlow(params); break;
         case 'tax-report': res = await odooApi.reports.taxReport(params); break;
+        case 'gstr1': res = await odooApi.reports.gstr1(gstParams); break;
+        case 'gstr3b': res = await odooApi.reports.gstr3b(gstParams); break;
         default: return;
       }
       setData(res.data);
     } catch { toast.error('Failed to load report'); }
     finally { setLoading(false); }
-  }, [companyId, reportType, dateFrom, dateTo]);
+  }, [companyId, reportType, dateFrom, dateTo, gstMonth, gstYear]);
   useEffect(() => { loadReport(); }, [loadReport]);
 
   const reportOptions = [
@@ -48,7 +53,11 @@ export function ReportsTab({ companyId }) {
     { value: 'aged-payables', label: 'Aged Payables', icon: AlertTriangle },
     { value: 'cash-flow', label: 'Cash Flow', icon: ArrowUpDown },
     { value: 'tax-report', label: 'Tax Report', icon: Calculator },
+    { value: 'gstr1', label: 'GSTR-1', icon: FileSpreadsheet },
+    { value: 'gstr3b', label: 'GSTR-3B', icon: Receipt },
   ];
+
+  const isGstReport = reportType === 'gstr1' || reportType === 'gstr3b';
 
   return (
     <div className="space-y-4" data-testid="acc-reports">
@@ -61,17 +70,44 @@ export function ReportsTab({ companyId }) {
         ))}
       </div>
 
-      <div className="flex gap-3 items-end">
-        <div className="space-y-1">
-          <Label className="text-xs">From</Label>
-          <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-40" data-testid="report-date-from" />
+      {isGstReport ? (
+        <div className="flex gap-3 items-end">
+          <div className="space-y-1">
+            <Label className="text-xs">Month</Label>
+            <select value={gstMonth} onChange={e => setGstMonth(e.target.value)}
+              className="flex h-9 w-24 rounded-md border border-input bg-background px-3 py-1 text-sm"
+              data-testid="gst-month-select">
+              {Array.from({ length: 12 }, (_, i) => (
+                <option key={i + 1} value={String(i + 1)}>{new Date(2000, i).toLocaleString('en', { month: 'short' })}</option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Year</Label>
+            <select value={gstYear} onChange={e => setGstYear(e.target.value)}
+              className="flex h-9 w-24 rounded-md border border-input bg-background px-3 py-1 text-sm"
+              data-testid="gst-year-select">
+              {Array.from({ length: 5 }, (_, i) => {
+                const y = new Date().getFullYear() - 2 + i;
+                return <option key={y} value={String(y)}>{y}</option>;
+              })}
+            </select>
+          </div>
+          <Button size="sm" variant="outline" onClick={loadReport} data-testid="report-refresh">Refresh</Button>
         </div>
-        <div className="space-y-1">
-          <Label className="text-xs">To</Label>
-          <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-40" data-testid="report-date-to" />
+      ) : (
+        <div className="flex gap-3 items-end">
+          <div className="space-y-1">
+            <Label className="text-xs">From</Label>
+            <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-40" data-testid="report-date-from" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">To</Label>
+            <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-40" data-testid="report-date-to" />
+          </div>
+          <Button size="sm" variant="outline" onClick={loadReport} data-testid="report-refresh">Refresh</Button>
         </div>
-        <Button size="sm" variant="outline" onClick={loadReport} data-testid="report-refresh">Refresh</Button>
-      </div>
+      )}
 
       {loading ? <LoadingSpinner /> : !data ? null : (
         <Card>
@@ -192,6 +228,115 @@ export function ReportsTab({ companyId }) {
                       <TableRow key={i}><TableCell>{t.name}</TableCell><TableCell>{t.tax_group}</TableCell><TableCell className="text-right">{fmtd(t.base_amount)}</TableCell><TableCell className="text-right">{fmtd(t.tax_amount)}</TableCell></TableRow>
                     ))}</TableBody></Table>
                 )}
+              </div>
+            )}
+
+            {reportType === 'gstr1' && data && (
+              <div className="space-y-6" data-testid="gstr1-report">
+                <div className="flex items-center gap-3 mb-2">
+                  <Badge variant="outline" className="text-lg px-4 py-1">GSTR-1 — {data.period}</Badge>
+                </div>
+                {/* Summary Cards */}
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  <div className="p-3 bg-muted rounded text-center"><p className="text-xs text-muted-foreground">Taxable Value</p><p className="font-bold">{fmt(data.totals?.taxable_value)}</p></div>
+                  <div className="p-3 bg-muted rounded text-center"><p className="text-xs text-muted-foreground">CGST</p><p className="font-bold">{fmt(data.totals?.cgst)}</p></div>
+                  <div className="p-3 bg-muted rounded text-center"><p className="text-xs text-muted-foreground">SGST</p><p className="font-bold">{fmt(data.totals?.sgst)}</p></div>
+                  <div className="p-3 bg-muted rounded text-center"><p className="text-xs text-muted-foreground">IGST</p><p className="font-bold">{fmt(data.totals?.igst)}</p></div>
+                  <div className="p-3 bg-primary/10 rounded text-center"><p className="text-xs text-muted-foreground">Invoice Value</p><p className="font-bold text-primary">{fmt(data.totals?.invoice_value)}</p></div>
+                </div>
+                <div className="text-sm text-muted-foreground">B2B: {data.totals?.b2b_count} invoices | B2C: {data.totals?.b2c_count} invoices | Total: {data.totals?.total_invoices}</div>
+                {/* B2B Section */}
+                {data.b2b?.length > 0 && (
+                  <details open>
+                    <summary className="font-semibold cursor-pointer mb-2">B2B Invoices (with GSTIN)</summary>
+                    <Table><TableHeader><TableRow><TableHead>Invoice</TableHead><TableHead>Date</TableHead><TableHead>Partner</TableHead><TableHead>GSTIN</TableHead><TableHead className="text-right">Taxable</TableHead><TableHead className="text-right">CGST</TableHead><TableHead className="text-right">SGST</TableHead><TableHead className="text-right">IGST</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader>
+                      <TableBody>{data.b2b.map((r, i) => (
+                        <TableRow key={i} className={r.is_refund ? 'text-destructive' : ''}>
+                          <TableCell className="font-mono text-sm">{r.invoice_number}{r.is_refund && <Badge variant="destructive" className="ml-1 text-[10px]">CN</Badge>}</TableCell>
+                          <TableCell>{r.invoice_date}</TableCell><TableCell>{r.partner_name}</TableCell><TableCell className="font-mono text-xs">{r.gstin}</TableCell>
+                          <TableCell className="text-right">{fmtd(r.taxable_value)}</TableCell><TableCell className="text-right">{fmtd(r.cgst)}</TableCell><TableCell className="text-right">{fmtd(r.sgst)}</TableCell><TableCell className="text-right">{fmtd(r.igst)}</TableCell><TableCell className="text-right font-semibold">{fmtd(r.total)}</TableCell>
+                        </TableRow>
+                      ))}</TableBody></Table>
+                  </details>
+                )}
+                {/* B2C Section */}
+                {data.b2c_small?.length > 0 && (
+                  <details>
+                    <summary className="font-semibold cursor-pointer mb-2">B2C Invoices (without GSTIN)</summary>
+                    <Table><TableHeader><TableRow><TableHead>Invoice</TableHead><TableHead>Date</TableHead><TableHead>Partner</TableHead><TableHead className="text-right">Taxable</TableHead><TableHead className="text-right">CGST</TableHead><TableHead className="text-right">SGST</TableHead><TableHead className="text-right">IGST</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader>
+                      <TableBody>{data.b2c_small.map((r, i) => (
+                        <TableRow key={i}><TableCell className="font-mono text-sm">{r.invoice_number}</TableCell><TableCell>{r.invoice_date}</TableCell><TableCell>{r.partner_name}</TableCell>
+                          <TableCell className="text-right">{fmtd(r.taxable_value)}</TableCell><TableCell className="text-right">{fmtd(r.cgst)}</TableCell><TableCell className="text-right">{fmtd(r.sgst)}</TableCell><TableCell className="text-right">{fmtd(r.igst)}</TableCell><TableCell className="text-right font-semibold">{fmtd(r.total)}</TableCell>
+                        </TableRow>
+                      ))}</TableBody></Table>
+                  </details>
+                )}
+                {/* HSN Summary */}
+                {data.hsn_summary?.length > 0 && (
+                  <details>
+                    <summary className="font-semibold cursor-pointer mb-2">HSN Summary</summary>
+                    <Table><TableHeader><TableRow><TableHead>HSN</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Rate</TableHead><TableHead className="text-right">Qty</TableHead><TableHead className="text-right">Taxable</TableHead><TableHead className="text-right">CGST</TableHead><TableHead className="text-right">SGST</TableHead><TableHead className="text-right">IGST</TableHead></TableRow></TableHeader>
+                      <TableBody>{data.hsn_summary.map((r, i) => (
+                        <TableRow key={i}><TableCell className="font-mono text-sm">{r.hsn_code}</TableCell><TableCell>{r.description}</TableCell>
+                          <TableCell className="text-right">{r.gst_rate}%</TableCell><TableCell className="text-right">{r.quantity}</TableCell>
+                          <TableCell className="text-right">{fmtd(r.taxable_value)}</TableCell><TableCell className="text-right">{fmtd(r.cgst)}</TableCell><TableCell className="text-right">{fmtd(r.sgst)}</TableCell><TableCell className="text-right">{fmtd(r.igst)}</TableCell>
+                        </TableRow>
+                      ))}</TableBody></Table>
+                  </details>
+                )}
+              </div>
+            )}
+
+            {reportType === 'gstr3b' && data && (
+              <div className="space-y-6" data-testid="gstr3b-report">
+                <div className="flex items-center gap-3 mb-2">
+                  <Badge variant="outline" className="text-lg px-4 py-1">GSTR-3B — {data.period}</Badge>
+                </div>
+                {/* 3.1 Outward Supplies */}
+                <Card className="border-l-4 border-l-blue-500">
+                  <CardHeader className="py-3"><CardTitle className="text-sm">3.1 Outward Supplies (Sales)</CardTitle></CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                      <div className="p-2 bg-muted rounded text-center"><p className="text-[10px] text-muted-foreground">Taxable</p><p className="font-bold text-sm">{fmt(data.outward_supplies?.taxable_value)}</p></div>
+                      <div className="p-2 bg-muted rounded text-center"><p className="text-[10px] text-muted-foreground">CGST</p><p className="font-bold text-sm">{fmt(data.outward_supplies?.cgst)}</p></div>
+                      <div className="p-2 bg-muted rounded text-center"><p className="text-[10px] text-muted-foreground">SGST</p><p className="font-bold text-sm">{fmt(data.outward_supplies?.sgst)}</p></div>
+                      <div className="p-2 bg-muted rounded text-center"><p className="text-[10px] text-muted-foreground">IGST</p><p className="font-bold text-sm">{fmt(data.outward_supplies?.igst)}</p></div>
+                      <div className="p-2 bg-blue-500/10 rounded text-center"><p className="text-[10px] text-muted-foreground">Total Tax</p><p className="font-bold text-sm">{fmt(data.outward_supplies?.total_tax)}</p></div>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">{data.outward_supplies?.invoice_count} invoices</p>
+                  </CardContent>
+                </Card>
+                {/* 3.2 Inward Supplies (ITC) */}
+                <Card className="border-l-4 border-l-green-500">
+                  <CardHeader className="py-3"><CardTitle className="text-sm">4. Eligible ITC (Purchases)</CardTitle></CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="p-2 bg-muted rounded text-center"><p className="text-[10px] text-muted-foreground">CGST Credit</p><p className="font-bold text-sm">{fmt(data.itc_available?.cgst)}</p></div>
+                      <div className="p-2 bg-muted rounded text-center"><p className="text-[10px] text-muted-foreground">SGST Credit</p><p className="font-bold text-sm">{fmt(data.itc_available?.sgst)}</p></div>
+                      <div className="p-2 bg-muted rounded text-center"><p className="text-[10px] text-muted-foreground">IGST Credit</p><p className="font-bold text-sm">{fmt(data.itc_available?.igst)}</p></div>
+                      <div className="p-2 bg-green-500/10 rounded text-center"><p className="text-[10px] text-muted-foreground">Total ITC</p><p className="font-bold text-sm">{fmt(data.itc_available?.total)}</p></div>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">{data.inward_supplies?.bill_count} bills</p>
+                  </CardContent>
+                </Card>
+                {/* 6.1 Tax Payable */}
+                <Card className="border-l-4 border-l-red-500">
+                  <CardHeader className="py-3"><CardTitle className="text-sm">6.1 Payment of Tax</CardTitle></CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="p-2 bg-muted rounded text-center"><p className="text-[10px] text-muted-foreground">CGST Payable</p><p className="font-bold text-sm">{fmt(data.tax_payable?.cgst)}</p></div>
+                      <div className="p-2 bg-muted rounded text-center"><p className="text-[10px] text-muted-foreground">SGST Payable</p><p className="font-bold text-sm">{fmt(data.tax_payable?.sgst)}</p></div>
+                      <div className="p-2 bg-muted rounded text-center"><p className="text-[10px] text-muted-foreground">IGST Payable</p><p className="font-bold text-sm">{fmt(data.tax_payable?.igst)}</p></div>
+                      <div className={`p-2 rounded text-center ${data.net_payable >= 0 ? 'bg-red-500/10' : 'bg-green-500/10'}`}>
+                        <p className="text-[10px] text-muted-foreground">Net Payable</p>
+                        <p className={`font-bold text-sm ${data.net_payable >= 0 ? 'text-red-600' : 'text-green-600'}`}>{fmt(data.net_payable)}</p>
+                      </div>
+                    </div>
+                    {data.itc_refund?.total > 0 && (
+                      <p className="text-xs text-green-600 mt-2">ITC Refund available: {fmt(data.itc_refund.total)}</p>
+                    )}
+                  </CardContent>
+                </Card>
               </div>
             )}
           </CardContent>

@@ -875,3 +875,208 @@ async def accounting_dashboard(company_id: Optional[str] = None, current_user: d
         "monthly_income": round(monthly_income, 2), "monthly_expense": round(monthly_expense, 2),
         "monthly_profit": round(monthly_income - monthly_expense, 2),
     }
+
+
+# ========== GST RETURN REPORTS ==========
+
+@router.get("/reports/gstr1")
+async def gstr1_report(company_id: Optional[str] = None, month: Optional[str] = None,
+                       year: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+    """GSTR-1: Outward supplies report - all sales invoices with GST breakdown."""
+    cid = await get_cid(current_user, company_id)
+    now = datetime.now(timezone.utc)
+    m = int(month) if month else now.month
+    y = int(year) if year else now.year
+    date_from = f"{y}-{m:02d}-01"
+    if m == 12:
+        date_to = f"{y + 1}-01-01"
+    else:
+        date_to = f"{y}-{m + 1:02d}-01"
+
+    invoices = await db.odoo_moves.find({
+        "company_id": cid,
+        "move_type": {"$in": ["out_invoice", "out_refund"]},
+        "state": "posted",
+        "date": {"$gte": date_from, "$lt": date_to},
+    }, {"_id": 0}).to_list(10000)
+
+    b2b = []
+    b2c_small = []
+    hsn_summary = {}
+    total_taxable = 0
+    total_cgst = 0
+    total_sgst = 0
+    total_igst = 0
+    total_invoice_value = 0
+
+    for inv in invoices:
+        partner = await db.odoo_partners.find_one({"id": inv.get("partner_id")}, {"_id": 0, "name": 1, "gstin": 1}) if inv.get("partner_id") else None
+        partner_name = partner["name"] if partner else "Unknown"
+        partner_gstin = partner.get("gstin", "") if partner else ""
+
+        inv_taxable = inv.get("amount_untaxed", 0)
+        inv_tax = inv.get("amount_tax", 0)
+        inv_total = inv.get("amount_total", 0)
+        gst_type = inv.get("gst_type", "intra")
+
+        inv_cgst = 0
+        inv_sgst = 0
+        inv_igst = 0
+        if gst_type == "intra":
+            inv_cgst = round(inv_tax / 2, 2)
+            inv_sgst = round(inv_tax - inv_cgst, 2)
+        else:
+            inv_igst = inv_tax
+
+        total_taxable += inv_taxable
+        total_cgst += inv_cgst
+        total_sgst += inv_sgst
+        total_igst += inv_igst
+        total_invoice_value += inv_total
+
+        entry = {
+            "invoice_number": inv.get("name", ""),
+            "invoice_date": inv.get("date", ""),
+            "partner_name": partner_name,
+            "gstin": partner_gstin,
+            "taxable_value": round(inv_taxable, 2),
+            "cgst": round(inv_cgst, 2),
+            "sgst": round(inv_sgst, 2),
+            "igst": round(inv_igst, 2),
+            "total": round(inv_total, 2),
+            "gst_type": gst_type,
+            "is_refund": inv.get("move_type") == "out_refund",
+        }
+
+        if partner_gstin:
+            b2b.append(entry)
+        else:
+            b2c_small.append(entry)
+
+        for line in inv.get("invoice_lines", []):
+            hsn = line.get("hsn_code", "0000")
+            rate = line.get("gst_rate", 0)
+            key = f"{hsn}_{rate}"
+            if key not in hsn_summary:
+                hsn_summary[key] = {"hsn_code": hsn, "description": line.get("product_name", ""), "gst_rate": rate,
+                                     "quantity": 0, "taxable_value": 0, "cgst": 0, "sgst": 0, "igst": 0, "total": 0}
+            line_taxable = line.get("quantity", 0) * line.get("unit_price", 0) * (1 - line.get("discount", 0) / 100)
+            line_tax = line_taxable * rate / 100
+            hsn_summary[key]["quantity"] += line.get("quantity", 0)
+            hsn_summary[key]["taxable_value"] += line_taxable
+            if gst_type == "intra":
+                hsn_summary[key]["cgst"] += round(line_tax / 2, 2)
+                hsn_summary[key]["sgst"] += round(line_tax - round(line_tax / 2, 2), 2)
+            else:
+                hsn_summary[key]["igst"] += line_tax
+            hsn_summary[key]["total"] += line_taxable + line_tax
+
+    for v in hsn_summary.values():
+        for k in ["taxable_value", "cgst", "sgst", "igst", "total"]:
+            v[k] = round(v[k], 2)
+
+    return {
+        "period": f"{y}-{m:02d}",
+        "b2b": b2b,
+        "b2c_small": b2c_small,
+        "hsn_summary": list(hsn_summary.values()),
+        "totals": {
+            "taxable_value": round(total_taxable, 2),
+            "cgst": round(total_cgst, 2),
+            "sgst": round(total_sgst, 2),
+            "igst": round(total_igst, 2),
+            "invoice_value": round(total_invoice_value, 2),
+            "total_invoices": len(invoices),
+            "b2b_count": len(b2b),
+            "b2c_count": len(b2c_small),
+        },
+    }
+
+
+@router.get("/reports/gstr3b")
+async def gstr3b_report(company_id: Optional[str] = None, month: Optional[str] = None,
+                        year: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+    """GSTR-3B: Monthly summary return with tax liability and input credit."""
+    cid = await get_cid(current_user, company_id)
+    now = datetime.now(timezone.utc)
+    m = int(month) if month else now.month
+    y = int(year) if year else now.year
+    date_from = f"{y}-{m:02d}-01"
+    if m == 12:
+        date_to = f"{y + 1}-01-01"
+    else:
+        date_to = f"{y}-{m + 1:02d}-01"
+
+    # Outward supplies (sales)
+    out_invoices = await db.odoo_moves.find({
+        "company_id": cid, "move_type": {"$in": ["out_invoice", "out_refund"]},
+        "state": "posted", "date": {"$gte": date_from, "$lt": date_to},
+    }, {"_id": 0}).to_list(10000)
+
+    out_taxable = 0
+    out_cgst = 0
+    out_sgst = 0
+    out_igst = 0
+    for inv in out_invoices:
+        tax = inv.get("amount_tax", 0)
+        mult = -1 if inv.get("move_type") == "out_refund" else 1
+        out_taxable += inv.get("amount_untaxed", 0) * mult
+        if inv.get("gst_type") == "inter":
+            out_igst += tax * mult
+        else:
+            out_cgst += round(tax / 2, 2) * mult
+            out_sgst += round(tax - round(tax / 2, 2), 2) * mult
+
+    # Inward supplies (purchases)
+    in_invoices = await db.odoo_moves.find({
+        "company_id": cid, "move_type": {"$in": ["in_invoice", "in_refund"]},
+        "state": "posted", "date": {"$gte": date_from, "$lt": date_to},
+    }, {"_id": 0}).to_list(10000)
+
+    in_taxable = 0
+    in_cgst = 0
+    in_sgst = 0
+    in_igst = 0
+    for bill in in_invoices:
+        tax = bill.get("amount_tax", 0)
+        mult = -1 if bill.get("move_type") == "in_refund" else 1
+        in_taxable += bill.get("amount_untaxed", 0) * mult
+        if bill.get("gst_type") == "inter":
+            in_igst += tax * mult
+        else:
+            in_cgst += round(tax / 2, 2) * mult
+            in_sgst += round(tax - round(tax / 2, 2), 2) * mult
+
+    net_cgst = round(out_cgst - in_cgst, 2)
+    net_sgst = round(out_sgst - in_sgst, 2)
+    net_igst = round(out_igst - in_igst, 2)
+    net_payable = round(net_cgst + net_sgst + net_igst, 2)
+
+    return {
+        "period": f"{y}-{m:02d}",
+        "outward_supplies": {
+            "taxable_value": round(out_taxable, 2), "cgst": round(out_cgst, 2),
+            "sgst": round(out_sgst, 2), "igst": round(out_igst, 2),
+            "total_tax": round(out_cgst + out_sgst + out_igst, 2),
+            "invoice_count": len(out_invoices),
+        },
+        "inward_supplies": {
+            "taxable_value": round(in_taxable, 2), "cgst": round(in_cgst, 2),
+            "sgst": round(in_sgst, 2), "igst": round(in_igst, 2),
+            "total_tax": round(in_cgst + in_sgst + in_igst, 2),
+            "bill_count": len(in_invoices),
+        },
+        "itc_available": {
+            "cgst": round(in_cgst, 2), "sgst": round(in_sgst, 2), "igst": round(in_igst, 2),
+            "total": round(in_cgst + in_sgst + in_igst, 2),
+        },
+        "tax_payable": {
+            "cgst": max(net_cgst, 0), "sgst": max(net_sgst, 0), "igst": max(net_igst, 0),
+            "total": max(net_payable, 0),
+        },
+        "itc_refund": {
+            "cgst": abs(min(net_cgst, 0)), "sgst": abs(min(net_sgst, 0)), "igst": abs(min(net_igst, 0)),
+            "total": abs(min(net_payable, 0)),
+        },
+        "net_payable": net_payable,
+    }
