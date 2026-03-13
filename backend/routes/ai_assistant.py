@@ -7,7 +7,13 @@ from database import db
 from deps import get_current_user, resolve_company_id
 from models import UserRole
 from odoo_accounting.engine import create_invoice_move, register_payment, post_move
-import uuid, os, json, re, logging, base64, io
+import uuid
+import os
+import json
+import re
+import logging
+import base64
+import io
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/ai-assistant")
@@ -602,3 +608,29 @@ async def save_correction(mapping: CorrectionMapping, current_user: dict = Depen
 async def get_mappings(company_id: Optional[str] = None, current_user: dict = Depends(get_current_user)):
     cid = await _cid(current_user, company_id)
     return await db.ai_correction_mappings.find({"company_id": cid}, {"_id": 0}).to_list(200)
+
+
+@router.delete("/mappings/{mapping_id}")
+async def delete_mapping(mapping_id: str, current_user: dict = Depends(get_current_user)):
+    """Delete a correction mapping."""
+    result = await db.ai_correction_mappings.delete_one({"id": mapping_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Mapping not found")
+    return {"status": "deleted"}
+
+
+# ============ 8. AUDIT TRAIL STATS ============
+
+@router.get("/audit-stats")
+async def get_audit_stats(company_id: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+    """Get aggregated audit trail stats."""
+    cid = await _cid(current_user, company_id)
+    total_approved = await db.ai_audit_trail.count_documents({"company_id": cid, "action": "approved_and_posted"})
+    total_rejected = await db.ai_audit_trail.count_documents({"company_id": cid, "action": "rejected"})
+    total_pending = await db.ai_pending_entries.count_documents({"company_id": cid, "status": "pending"})
+    return {
+        "total_approved": total_approved,
+        "total_rejected": total_rejected,
+        "total_pending": total_pending,
+        "total_actions": total_approved + total_rejected,
+    }

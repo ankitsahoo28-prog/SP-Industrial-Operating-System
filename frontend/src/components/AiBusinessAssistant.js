@@ -1,29 +1,70 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { aiAssistantApi } from '@/lib/api';
 import { toast } from 'sonner';
 import {
   Send, Upload, Bot, User, FileText, Loader2, CheckCircle, XCircle,
   Edit3, ArrowRight, AlertTriangle, FileSpreadsheet, Image, File as FileIcon,
-  History, ChevronDown, ChevronUp,
+  History, ChevronDown, ChevronUp, Brain,
 } from 'lucide-react';
 
 const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n || 0);
 
 // ============ PREVIEW PANEL COMPONENT ============
-function PreviewPanel({ entries, pendingId, onApprove, onReject, onEdit }) {
+function PreviewPanel({ entries, pendingId, onApprove, onReject, onEdit, companyId }) {
   const [editing, setEditing] = useState(false);
   const [editData, setEditData] = useState(entries);
   const [submitting, setSubmitting] = useState(false);
   const [showAccounting, setShowAccounting] = useState(true);
   const [showInventory, setShowInventory] = useState(true);
+  const [showLearnDialog, setShowLearnDialog] = useState(false);
+  const [detectedChanges, setDetectedChanges] = useState([]);
+
+  // Detect edits and offer to save as corrections
+  const detectChanges = () => {
+    const changes = [];
+    const origAcc = entries?.accounting_entries || [];
+    const editAcc = editData?.accounting_entries || [];
+    origAcc.forEach((orig, i) => {
+      const edited = editAcc[i];
+      if (!edited) return;
+      if (orig.account_name && edited.account_name && orig.account_name !== edited.account_name) {
+        changes.push({ original: orig.account_name, corrected: edited.account_name, field: 'account' });
+      }
+    });
+    const origInv = entries?.inventory_entries || [];
+    const editInv = editData?.inventory_entries || [];
+    origInv.forEach((orig, i) => {
+      const edited = editInv[i];
+      if (!edited) return;
+      if (orig.product_name && edited.product_name && orig.product_name !== edited.product_name) {
+        changes.push({ original: orig.product_name, corrected: edited.product_name, field: 'product' });
+      }
+      if (orig.warehouse && edited.warehouse && orig.warehouse !== edited.warehouse) {
+        changes.push({ original: orig.warehouse, corrected: edited.warehouse, field: 'name' });
+      }
+    });
+    return changes;
+  };
 
   const handleApprove = async () => {
+    // Check for edits before approving
+    if (editing) {
+      const changes = detectChanges();
+      if (changes.length > 0) {
+        setDetectedChanges(changes);
+        setShowLearnDialog(true);
+        return;
+      }
+    }
+    await doApprove();
+  };
+
+  const doApprove = async () => {
     setSubmitting(true);
     try {
       const res = await aiAssistantApi.approve(pendingId, editing ? editData : null);
@@ -31,6 +72,28 @@ function PreviewPanel({ entries, pendingId, onApprove, onReject, onEdit }) {
       onApprove(res.data);
     } catch (err) { toast.error(err.response?.data?.detail || 'Failed to post'); }
     finally { setSubmitting(false); }
+  };
+
+  const handleLearnAndApprove = async () => {
+    // Save all detected corrections
+    for (const change of detectedChanges) {
+      try {
+        await aiAssistantApi.learn({
+          original: change.original,
+          corrected: change.corrected,
+          field: change.field,
+          company_id: companyId,
+        });
+      } catch { /* silent */ }
+    }
+    toast.success(`${detectedChanges.length} correction(s) saved for future use!`);
+    setShowLearnDialog(false);
+    await doApprove();
+  };
+
+  const handleSkipLearnAndApprove = async () => {
+    setShowLearnDialog(false);
+    await doApprove();
   };
 
   const handleReject = async () => {
@@ -155,6 +218,38 @@ function PreviewPanel({ entries, pendingId, onApprove, onReject, onEdit }) {
           <XCircle size={14} className="mr-1" />Discard
         </Button>
       </div>
+
+      {/* Smart Learning Dialog */}
+      <Dialog open={showLearnDialog} onOpenChange={setShowLearnDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Brain size={16} className="text-primary" />Save Corrections for Future?
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            You edited the following fields. Would you like the AI to remember these corrections?
+          </p>
+          <div className="space-y-2 my-2">
+            {detectedChanges.map((c, i) => (
+              <div key={i} className="flex items-center gap-2 p-2 rounded border text-xs">
+                <code className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-600">{c.original}</code>
+                <ArrowRight size={12} className="text-muted-foreground" />
+                <code className="px-1.5 py-0.5 rounded bg-green-500/10 text-green-600">{c.corrected}</code>
+                <Badge variant="outline" className="text-[9px] ml-auto">{c.field}</Badge>
+              </div>
+            ))}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={handleSkipLearnAndApprove} data-testid="skip-learn-btn">
+              Skip & Post
+            </Button>
+            <Button size="sm" onClick={handleLearnAndApprove} data-testid="learn-and-post-btn">
+              <Brain size={14} className="mr-1" />Learn & Post
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -290,6 +385,7 @@ export default function AiBusinessAssistant({ companyId }) {
             pendingId={activePreview.pendingId}
             onApprove={handleApproved}
             onReject={handleRejected}
+            companyId={companyId}
           />
         )}
         {loading && (

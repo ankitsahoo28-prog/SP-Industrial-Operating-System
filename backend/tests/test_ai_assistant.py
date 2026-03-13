@@ -340,7 +340,86 @@ class TestAIAssistantBackend:
         assert isinstance(data, list), "Mappings should return a list"
         print(f"Mappings returned {len(data)} entries")
     
-    # ============ 7. MANAGER ACCESS TESTS ============
+    # ============ 7. AUDIT STATS ENDPOINT ============
+    
+    def test_get_audit_stats_returns_stats(self):
+        """GET /api/ai-assistant/audit-stats returns stats object with totals"""
+        if not self.token:
+            pytest.skip("Director auth failed")
+        
+        response = requests.get(
+            f"{BASE_URL}/api/ai-assistant/audit-stats",
+            headers=self.get_headers()
+        )
+        
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+        data = response.json()
+        
+        # Verify stats structure
+        assert "total_approved" in data, "Stats should have 'total_approved'"
+        assert "total_rejected" in data, "Stats should have 'total_rejected'"
+        assert "total_pending" in data, "Stats should have 'total_pending'"
+        assert "total_actions" in data, "Stats should have 'total_actions'"
+        
+        # Verify values are integers
+        assert isinstance(data["total_approved"], int), "total_approved should be int"
+        assert isinstance(data["total_rejected"], int), "total_rejected should be int"
+        assert isinstance(data["total_pending"], int), "total_pending should be int"
+        assert isinstance(data["total_actions"], int), "total_actions should be int"
+        
+        print(f"Audit stats: approved={data['total_approved']}, rejected={data['total_rejected']}, pending={data['total_pending']}, total_actions={data['total_actions']}")
+    
+    def test_audit_stats_requires_auth(self):
+        """GET /api/ai-assistant/audit-stats without auth returns 401"""
+        response = requests.get(f"{BASE_URL}/api/ai-assistant/audit-stats")
+        assert response.status_code in [401, 403], f"Expected 401/403, got {response.status_code}"
+    
+    # ============ 8. DELETE MAPPING ENDPOINT ============
+    
+    def test_delete_mapping_flow(self):
+        """Test create mapping then delete it"""
+        if not self.token:
+            pytest.skip("Director auth failed")
+        
+        # First create a test mapping
+        create_resp = requests.post(
+            f"{BASE_URL}/api/ai-assistant/learn",
+            headers=self.get_headers(),
+            json={
+                "original": "TEST_DELETE_ME",
+                "corrected": "Delete Test Item",
+                "field": "name"
+            }
+        )
+        assert create_resp.status_code == 200, f"Create mapping failed: {create_resp.text}"
+        mapping_data = create_resp.json().get("mapping", {})
+        mapping_id = mapping_data.get("id")
+        assert mapping_id, "Created mapping should have id"
+        
+        # Now delete it
+        delete_resp = requests.delete(
+            f"{BASE_URL}/api/ai-assistant/mappings/{mapping_id}",
+            headers=self.get_headers()
+        )
+        
+        assert delete_resp.status_code == 200, f"Delete mapping failed: {delete_resp.text}"
+        delete_data = delete_resp.json()
+        assert delete_data.get("status") == "deleted", f"Expected status='deleted', got {delete_data}"
+        print(f"Mapping {mapping_id} deleted successfully")
+    
+    def test_delete_nonexistent_mapping_returns_404(self):
+        """DELETE /api/ai-assistant/mappings/{id} with invalid id returns 404"""
+        if not self.token:
+            pytest.skip("Director auth failed")
+        
+        response = requests.delete(
+            f"{BASE_URL}/api/ai-assistant/mappings/nonexistent-mapping-id",
+            headers=self.get_headers()
+        )
+        
+        assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    
+    # ============ 9. MANAGER ACCESS TESTS ============
     
     def test_manager_can_access_chat(self):
         """Manager role should have access to AI Assistant chat"""

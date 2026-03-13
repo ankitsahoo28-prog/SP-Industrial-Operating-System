@@ -278,7 +278,9 @@ export const aiAssistantApi = {
   reject: (pendingId) => api.post('/ai-assistant/reject', { pending_id: pendingId }),
   history: (companyId) => api.get('/ai-assistant/history', { params: { company_id: companyId } }),
   auditTrail: (companyId) => api.get('/ai-assistant/audit-trail', { params: { company_id: companyId } }),
+  auditStats: (companyId) => api.get('/ai-assistant/audit-stats', { params: { company_id: companyId } }),
   learn: (data) => api.post('/ai-assistant/learn', data),
   mappings: (companyId) => api.get('/ai-assistant/mappings', { params: { company_id: companyId } }),
+  deleteMapping: (mappingId) => api.delete(`/ai-assistant/mappings/${mappingId}`),
 };
 
