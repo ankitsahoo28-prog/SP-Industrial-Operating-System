@@ -9,7 +9,7 @@ import requests
 import os
 import uuid
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://odoo-advance-pay.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://erp-ai-assistant-1.preview.emergentagent.com').rstrip('/')
 
 # Test credentials
 TEST_USERS = {
