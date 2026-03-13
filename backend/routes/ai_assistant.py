@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from database import db
 from deps import get_current_user, resolve_company_id
 from models import UserRole
-from odoo_accounting.engine import create_invoice_move, register_payment, post_move
+from odoo_accounting.engine import create_invoice_move, register_payment
 import uuid
 import os
 import json
@@ -470,11 +470,47 @@ async def approve_entry(req: ApproveRequest, current_user: dict = Depends(get_cu
                     })
 
             if move_data["lines"] and move_data["journal_id"]:
-                from odoo_accounting.engine import create_journal_entry
-                move = await create_journal_entry(db, cid, move_data)
-                if move:
-                    await post_move(db, move["id"])
-                    results.append({"type": "journal_entry", "id": move["id"], "name": move.get("name", "")})
+                # Create journal entry directly in MongoDB
+                move_id = str(uuid.uuid4())
+                journal = await db.odoo_journals.find_one({"id": move_data["journal_id"], "company_id": cid}, {"_id": 0})
+                now_iso = datetime.now(timezone.utc).isoformat()
+                total_debit = sum(ln["debit"] for ln in move_data["lines"])
+
+                # Build move lines
+                move_lines = []
+                for line in move_data["lines"]:
+                    ml_id = str(uuid.uuid4())
+                    move_lines.append({
+                        "id": ml_id, "move_id": move_id,
+                        "account_id": line["account_id"],
+                        "name": line.get("name", ""),
+                        "debit": round(line["debit"], 2),
+                        "credit": round(line["credit"], 2),
+                        "company_id": cid,
+                    })
+
+                move_doc = {
+                    "id": move_id,
+                    "name": f"AI/{move_data['ref']}",
+                    "move_type": "entry",
+                    "journal_id": move_data["journal_id"],
+                    "journal_name": journal["name"] if journal else "Miscellaneous",
+                    "ref": move_data["ref"],
+                    "narration": move_data.get("narration", ""),
+                    "date": move_data["date"],
+                    "state": "posted",
+                    "amount_total": round(total_debit, 2),
+                    "company_id": cid,
+                    "created_by": current_user["user_id"],
+                    "created_at": now_iso,
+                    "posted_at": now_iso,
+                }
+
+                await db.odoo_moves.insert_one({**move_doc, "_id": move_id})
+                for ml in move_lines:
+                    await db.odoo_move_lines.insert_one({**ml, "_id": ml["id"]})
+
+                results.append({"type": "journal_entry", "id": move_id, "name": move_doc["name"]})
 
         # Post inventory entries
         if entries.get("inventory_entries"):
