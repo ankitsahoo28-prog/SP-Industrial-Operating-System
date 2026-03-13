@@ -13,66 +13,45 @@ Build a comprehensive multi-business ERP application with: Odoo-style accounting
 
 ## What's Been Implemented
 
-### P0: AI Audit Trail — Mar 2026
-- Audit trail logging on every approve/reject action in the AI Business Assistant
-- Stats endpoint showing total approved, rejected, pending, and total actions
+### Excel Processing & Batch Entries — Mar 2026
+- Upgraded AI model from gpt-4o-mini to gpt-4o for better file understanding
+- Improved Excel extraction: preserves sheet names, row numbers, column headers, structured key-value format
+- Multi-entry (batch) support: AI can return multiple entries from a single message or file
+- Batch Preview UI: shows all entries in scrollable list with per-entry approve/reject
+- "Approve All" and "Reject All" batch actions
+- Backend batch-approve/batch-reject endpoints
+- Handles large multi-sheet Excel files (50+ sheets) with smart truncation
+- Increased upload timeout to 120s for large files
+
+### AI Audit Trail — Mar 2026
+- Audit trail logging on every approve/reject action
+- Stats endpoint: total approved, rejected, pending, total actions
 - Full Audit Trail UI tab with stats cards, filterable list, pagination
-- Each audit entry records: action, user name, role, timestamp, source, results
 
-### P1: AI Smart Learning — Mar 2026
-- Correction mappings system: AI learns from user corrections (original → corrected text)
-- Mappings categorized by field type: name, product, partner, account
+### AI Smart Learning — Mar 2026
+- Correction mappings system: AI learns from user corrections
+- Auto-detection: when user edits entries before approving, system detects changes and offers to save
 - Smart Learning UI tab with mapping viewer, add dialog, delete capability
-- Auto-detection: when user edits AI entries before approving, system detects changes and offers to save as corrections
-- Learned corrections are included in AI prompts for future document processing
-
-### GSTR Compliance Reports — Mar 2026
-- GSTR-1: Outward supplies (B2B/B2C breakdown, HSN summary, tax totals)
-- GSTR-3B: Monthly return (outward/inward supplies, ITC available, tax payable/refund, net payable)
-- Month/Year picker for GST report period selection
-
-### Role Templates — Mar 2026
-- 5 pre-built templates: Accountant, Warehouse Manager, Field Supervisor, Sales Manager, Read-Only Auditor
-- One-click create role from template
-
-### WhatsApp Integration — Mar 2026
-- Forgot password via WhatsApp OTP (6-digit code, 15-min expiry)
-- Task assignment & status update notifications
-- Low stock alerts, invoice notifications
-- Graceful degradation when Twilio not configured
-- **STATUS: BLOCKED on Twilio API keys**
-
-### PWA Offline Sync — Mar 2026
-- Enhanced service worker with IndexedDB offline queue
-- Non-GET requests queued when offline, auto-synced when online
-- Background sync for offline form submissions
+- Learned corrections included in AI prompts
 
 ### Previously Completed
 - GST in Accounting (CGST+SGST intra-state, IGST inter-state)
-- Advance Payment handling (is_advance, advance_balance, advance_adjustment)
-- AI Chat Confirmation (confirm before posting)
-- Custom Role-Based Access Control (19 permissions, director controls all)
+- Advance Payment handling
+- Custom RBAC (19 permissions, director controls all)
 - Location tracking always ON for manager/ground staff
-- Odoo-Style Inventory (8 tabs)
-- Odoo-Style Accounting (full double-entry)
-- AI Accounting Features (chat, bill scanner, categorization, reconciliation, Q&A, forecast, anomaly)
+- Odoo-Style Inventory (8 tabs) & Accounting (full double-entry)
+- GSTR-1 & GSTR-3B reports
+- Role Templates (5 prebuilt)
+- WhatsApp Integration (scaffolded, awaiting Twilio keys)
+- PWA Offline Sync
 - AI Business Assistant with Preview → Edit → Approve → Post workflow
-
-## Available Permissions (19)
-view_dashboard, view_inventory, edit_inventory, view_accounting, edit_accounting, manage_tasks, manage_users, manage_indents, view_reports, create_reports, manage_companies, view_audit_log, view_tracking, view_reconciliation, manage_roles, view_settings, view_executive, view_daily_summary, view_payroll
 
 ## Backlog
 - P1: WhatsApp activation (awaiting Twilio credentials)
 - P1: Native mobile app (PWA foundation ready)
 - P2: Advanced AI features (voice commands, advanced OCR, auto GST classification, duplicate invoice detection, fraud alerts)
-- P2: WhatsApp configuration through UI (currently .env only)
 - P3: Automated GSTR filing submission
 - P3: Remove legacy inventory code
-
-## 3rd Party Integrations
-- OpenAI GPT-4o via Emergent LLM Key
-- Twilio WhatsApp (optional, env-configurable) — BLOCKED on keys
-- SendGrid email (optional)
 
 ## Test Credentials
 - Director: director@sp.com / password123
