@@ -184,6 +184,8 @@ class InvoiceLineCreate(BaseModel):
     tax_ids: Optional[List[str]] = []
     account_id: Optional[str] = None
     analytic_account_id: Optional[str] = None
+    gst_rate: Optional[float] = 0
+    gst_type: Optional[str] = "intra"
 
 
 class InvoiceCreate(BaseModel):
@@ -198,6 +200,9 @@ class InvoiceCreate(BaseModel):
     payment_terms_days: Optional[int] = None
     currency: Optional[str] = "INR"
     attachments: Optional[List[str]] = []
+    gst_type: Optional[str] = "intra"
+    advance_adjustment: Optional[float] = 0
+    apply_advance: Optional[bool] = False
 
 
 class PaymentCreate(BaseModel):
@@ -210,6 +215,7 @@ class PaymentCreate(BaseModel):
     date: Optional[str] = None
     invoice_ids: Optional[List[str]] = []
     currency: Optional[str] = "INR"
+    is_advance: Optional[bool] = False
 
 
 class BankStatementCreate(BaseModel):

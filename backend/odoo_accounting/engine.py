@@ -12,6 +12,7 @@ DEFAULT_CHART_OF_ACCOUNTS = [
     {"code": "1200", "name": "Bank", "account_type": "bank", "reconcile": True, "parent_code": "1000"},
     {"code": "1210", "name": "Main Bank Account", "account_type": "bank", "reconcile": True, "parent_code": "1200"},
     {"code": "1300", "name": "Accounts Receivable", "account_type": "receivable", "reconcile": True, "parent_code": "1000"},
+    {"code": "1350", "name": "Advance to Suppliers", "account_type": "current_asset", "reconcile": True, "parent_code": "1000"},
     {"code": "1400", "name": "Inventory", "account_type": "current_asset", "reconcile": False, "parent_code": "1000"},
     {"code": "1500", "name": "Prepaid Expenses", "account_type": "current_asset", "reconcile": False, "parent_code": "1000"},
     {"code": "1600", "name": "Fixed Assets", "account_type": "fixed_asset", "reconcile": False, "parent_code": "1000"},
@@ -20,9 +21,14 @@ DEFAULT_CHART_OF_ACCOUNTS = [
     {"code": "2000", "name": "Liabilities", "account_type": "current_liability", "reconcile": False},
     {"code": "2100", "name": "Accounts Payable", "account_type": "payable", "reconcile": True, "parent_code": "2000"},
     {"code": "2200", "name": "Taxes Payable", "account_type": "current_liability", "reconcile": False, "parent_code": "2000"},
-    {"code": "2210", "name": "GST Output", "account_type": "current_liability", "reconcile": False, "parent_code": "2200"},
-    {"code": "2220", "name": "GST Input", "account_type": "current_asset", "reconcile": False, "parent_code": "1000"},
+    {"code": "2210", "name": "GST Output (CGST)", "account_type": "current_liability", "reconcile": False, "parent_code": "2200"},
+    {"code": "2211", "name": "GST Output (SGST)", "account_type": "current_liability", "reconcile": False, "parent_code": "2200"},
+    {"code": "2212", "name": "GST Output (IGST)", "account_type": "current_liability", "reconcile": False, "parent_code": "2200"},
+    {"code": "2220", "name": "GST Input (CGST)", "account_type": "current_asset", "reconcile": False, "parent_code": "1000"},
+    {"code": "2221", "name": "GST Input (SGST)", "account_type": "current_asset", "reconcile": False, "parent_code": "1000"},
+    {"code": "2222", "name": "GST Input (IGST)", "account_type": "current_asset", "reconcile": False, "parent_code": "1000"},
     {"code": "2230", "name": "TDS Payable", "account_type": "current_liability", "reconcile": False, "parent_code": "2200"},
+    {"code": "2250", "name": "Advance from Customers", "account_type": "current_liability", "reconcile": True, "parent_code": "2000"},
     {"code": "2300", "name": "Salary Payable", "account_type": "current_liability", "reconcile": False, "parent_code": "2000"},
     {"code": "2400", "name": "Short Term Loans", "account_type": "current_liability", "reconcile": False, "parent_code": "2000"},
     {"code": "2500", "name": "Long Term Loans", "account_type": "long_term_liability", "reconcile": False, "parent_code": "2000"},
@@ -358,9 +364,6 @@ async def create_invoice_move(db, invoice_data: dict, company_id: str, user_id: 
             # CGST
             cgst_acct = await db.odoo_accounts.find_one(
                 {"company_id": company_id, "code": "2210"}, {"_id": 0})
-            if not cgst_acct:
-                cgst_acct = await db.odoo_accounts.find_one(
-                    {"company_id": company_id, "account_type": "current_liability", "name": {"$regex": "CGST|GST", "$options": "i"}}, {"_id": 0})
             if cgst_acct:
                 half_tax = round(total_tax / 2, 2)
                 move_lines.append({
@@ -373,9 +376,9 @@ async def create_invoice_move(db, invoice_data: dict, company_id: str, user_id: 
                 })
             # SGST
             sgst_acct = await db.odoo_accounts.find_one(
-                {"company_id": company_id, "code": "2220"}, {"_id": 0})
+                {"company_id": company_id, "code": "2211"}, {"_id": 0})
             if not sgst_acct:
-                sgst_acct = cgst_acct  # Use same account if no SGST account
+                sgst_acct = cgst_acct  # Fallback to CGST account
             if sgst_acct:
                 half_tax2 = round(total_tax - round(total_tax / 2, 2), 2)
                 move_lines.append({
@@ -389,7 +392,10 @@ async def create_invoice_move(db, invoice_data: dict, company_id: str, user_id: 
         else:
             # IGST (inter-state)
             igst_acct = await db.odoo_accounts.find_one(
-                {"company_id": company_id, "code": {"$in": ["2210", "2220"]}}, {"_id": 0})
+                {"company_id": company_id, "code": "2212"}, {"_id": 0})
+            if not igst_acct:
+                igst_acct = await db.odoo_accounts.find_one(
+                    {"company_id": company_id, "code": "2210"}, {"_id": 0})
             if igst_acct:
                 move_lines.append({
                     "id": str(uuid.uuid4()), "move_id": move_id, "account_id": igst_acct["id"],

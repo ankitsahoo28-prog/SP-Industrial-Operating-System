@@ -340,11 +340,14 @@ async def create_invoice(data: InvoiceCreate, company_id: Optional[str] = None,
 
 @router.get("/payments")
 async def list_payments(company_id: Optional[str] = None, payment_type: Optional[str] = None,
+                        is_advance: Optional[str] = None,
                         current_user: dict = Depends(get_current_user)):
     cid = await get_cid(current_user, company_id)
     query = {"company_id": cid}
     if payment_type and payment_type != "all":
         query["payment_type"] = payment_type
+    if is_advance == "true":
+        query["is_advance"] = True
     payments = await db.odoo_payments.find(query, {"_id": 0}).sort("date", -1).to_list(500)
     for p in payments:
         if p.get("partner_id"):

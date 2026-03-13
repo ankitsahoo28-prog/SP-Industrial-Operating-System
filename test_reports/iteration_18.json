@@ -1,0 +1,136 @@
+{
+  "summary": "Iteration 18 - GST, Advance Payments, AI Chat Confirmation, Manager Inventory: All 4 key features tested and VERIFIED WORKING. Backend APIs pass all tests (11/12). Frontend UI fully functional with GST Type selector (Intra-State/Inter-State), GST Rate dropdown (0-28%), tax breakdown display, Advance Payment checkbox, AI Chat with Confirm & Post / Discard buttons, and Manager inventory access.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "GET /api/inv/overview",
+        "issue": "404 Not Found - endpoint doesn't exist (non-blocking, manager can access /inv/items and /inv/warehouses)",
+        "priority": "LOW"
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Accounting Dashboard",
+        "issues": ["Chart width/height warnings in console - recharts dimension issue when initially hidden/collapsed"]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_gst_advance_features.py",
+    "/app/test_reports/pytest/gst_advance_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_gst_advance_features.py"
+  ],
+  "success_rate": {
+    "backend": "92% (11/12 tests passed)",
+    "frontend": "100% - All requested features verified"
+  },
+  "test_credentials": {
+    "director": "director@sp.com / password123",
+    "manager": "manager@sp.com / password123"
+  },
+  "seed_data_creation": "TEST_GST_Partner created during tests, Test invoices with GST created",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "GST features fully working. All 4 requested features verified: 1) GST accounting with IGST/CGST/SGST, 2) Advance payment handling, 3) AI chat confirmation flow, 4) Manager inventory access. Products/Config tabs bug from iteration 17 still exists (categories.map error) but not in scope for this test.",
+  "verified_features": {
+    "gst_accounting": {
+      "intra_state": {
+        "status": "WORKING",
+        "details": "GST Type selector shows 'Intra-State (CGST + SGST)'. Invoice created with correct CGST/SGST split. Tax amount calculated correctly (subtotal * rate%)."
+      },
+      "inter_state": {
+        "status": "WORKING",
+        "details": "GST Type selector shows 'Inter-State (IGST)'. Invoice created with IGST. Tax calculation verified via API tests."
+      },
+      "gst_rates": {
+        "status": "WORKING",
+        "available_rates": ["0%", "5%", "12%", "18%", "28%"],
+        "ui_location": "Line item GST Rate dropdown"
+      },
+      "gst_accounts": {
+        "status": "VERIFIED",
+        "accounts": ["2210 - GST Output (CGST)", "2211 - GST Output (SGST)", "2212 - GST Output (IGST)"]
+      },
+      "invoice_list_gst_column": {
+        "status": "WORKING",
+        "details": "Invoice table has GST column showing tax amounts"
+      },
+      "invoice_detail_gst_type": {
+        "status": "WORKING",
+        "details": "Invoice detail dialog shows GST type (CGST+SGST or IGST) below tax amount"
+      }
+    },
+    "advance_payments": {
+      "create_advance": {
+        "status": "WORKING",
+        "details": "POST /api/acc/payments with is_advance=true sets is_advance=True and advance_balance=amount"
+      },
+      "filter_advance": {
+        "status": "WORKING",
+        "details": "GET /api/acc/payments?is_advance=true returns only advance payments"
+      },
+      "advance_checkbox_ui": {
+        "status": "WORKING",
+        "details": "'This is an Advance Payment' checkbox visible in Register Payment dialog"
+      },
+      "adv_badge": {
+        "status": "WORKING",
+        "details": "Payments list shows ADV badge for advance payments"
+      },
+      "advance_section": {
+        "status": "WORKING",
+        "details": "Advance Payments section shows with balance tracking"
+      },
+      "advance_adjustment_invoice": {
+        "status": "WORKING",
+        "details": "Invoice with advance_adjustment reduces amount_residual correctly"
+      }
+    },
+    "ai_chat_confirmation": {
+      "auto_post_false": {
+        "status": "WORKING",
+        "details": "POST /api/acc/ai/chat with auto_post=false returns action_type and proposed entry without posting (executed=false)"
+      },
+      "confirmation_ui": {
+        "status": "WORKING",
+        "details": "AI chat shows 'Confirm & Post' and 'Discard' buttons for transaction responses"
+      },
+      "confirmation_badge": {
+        "status": "WORKING",
+        "details": "'AI will always ask for confirmation before posting' badge visible"
+      },
+      "proposed_entry_display": {
+        "status": "WORKING",
+        "details": "Proposed Journal Entry shown with account names and debit/credit amounts"
+      }
+    },
+    "manager_inventory_access": {
+      "nav_visibility": {
+        "status": "WORKING",
+        "details": "Manager can see Inventory in sidebar navigation"
+      },
+      "inventory_tabs": {
+        "status": "WORKING",
+        "details": "Manager can access and view inventory tabs (Overview, Products, Moves, etc.)"
+      },
+      "api_access": {
+        "status": "WORKING",
+        "details": "Manager can access /api/inv/items and /api/inv/warehouses"
+      }
+    }
+  },
+  "mocked_apis": {
+    "has_mocked_apis": false,
+    "mocked_apis_list": [],
+    "note": "AI uses real GPT-4o via Emergent LLM key"
+  }
+}
