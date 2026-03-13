@@ -95,24 +95,61 @@ async def _call_vision(system_prompt, user_prompt, image_b64):
 
 
 def _parse_json(text):
+    """Parse JSON from AI response — handles single object or array."""
     m = re.search(r'```(?:json)?\s*([\s\S]*?)```', text)
     s = m.group(1).strip() if m else text.strip()
     return json.loads(s)
 
 
+def _ensure_batch(data):
+    """Normalize AI response to always be a list of entries."""
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict):
+        # Check if it has batch_entries
+        if "batch_entries" in data and isinstance(data["batch_entries"], list):
+            return data["batch_entries"]
+        # Single entry
+        if data.get("action_type"):
+            return [data]
+    return [data]
+
+
 def _extract_file_text(content: bytes, filename: str) -> str:
-    """Extract text from PDF, Excel, CSV files."""
+    """Extract text from PDF, Excel, CSV files with structure preservation."""
     ext = os.path.splitext(filename)[1].lower()
     if ext == '.csv':
-        return content.decode('utf-8', errors='replace')
+        text = content.decode('utf-8', errors='replace')
+        lines = text.strip().split('\n')
+        numbered = []
+        for i, line in enumerate(lines):
+            prefix = "HEADER:" if i == 0 else f"ROW {i}:"
+            numbered.append(f"{prefix} {line}")
+        return "\n".join(numbered)
     elif ext in ('.xlsx', '.xls'):
         import openpyxl
         wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
         lines = []
         for ws in wb.worksheets:
-            lines.append(f"--- Sheet: {ws.title} ---")
-            for row in ws.iter_rows(values_only=True):
-                lines.append("\t".join([str(c) if c is not None else "" for c in row]))
+            lines.append(f"\n=== Sheet: {ws.title} (rows: {ws.max_row}) ===")
+            headers = []
+            row_count = 0
+            for row_idx, row in enumerate(ws.iter_rows(values_only=True), 1):
+                cells = [str(c) if c is not None else "" for c in row]
+                if not any(c.strip() for c in cells):
+                    continue
+                if row_idx == 1:
+                    headers = cells
+                    lines.append(f"COLUMNS: {' | '.join(cells)}")
+                else:
+                    row_count += 1
+                    if headers and len(headers) == len(cells):
+                        pairs = [f"{h}={v}" for h, v in zip(headers, cells) if v.strip()]
+                        lines.append(f"ROW {row_idx}: {', '.join(pairs)}")
+                    else:
+                        lines.append(f"ROW {row_idx}: {' | '.join(cells)}")
+            if row_count == 0:
+                lines.append("  (no data rows)")
         return "\n".join(lines)
     elif ext == '.pdf':
         import pdfplumber
@@ -141,6 +178,9 @@ class ChatMessage(BaseModel):
 class ApproveRequest(BaseModel):
     pending_id: str
     entries: Optional[dict] = None  # User-edited entries
+
+class BatchApproveRequest(BaseModel):
+    pending_ids: List[str]
 
 class RejectRequest(BaseModel):
     pending_id: str
@@ -216,9 +256,11 @@ RULES:
 - NEVER auto-post. Always return preview data
 - For financial queries, include numbers and insights
 - Format currency as INR with commas (Indian format)
+- If the user asks for MULTIPLE entries (e.g. "create 5 journal entries" or gives a list), return a JSON ARRAY of entry objects
+- Each entry in the array must be a complete entry object with its own action_type, accounting_entries, etc.
 
 RESPONSE FORMAT for questions: Plain text with data
-RESPONSE FORMAT for entry requests: JSON with:
+RESPONSE FORMAT for SINGLE entry request: JSON object with:
 ```json
 {{
   "action_type": "journal_entry|invoice|payment|inventory_adjustment|stock_move",
@@ -236,36 +278,81 @@ RESPONSE FORMAT for entry requests: JSON with:
   "partner_name": "...",
   "partner_id": "..."
 }}
+```
+
+RESPONSE FORMAT for MULTIPLE entries: JSON object with batch_entries array:
+```json
+{{
+  "batch_entries": [
+    {{"action_type": "...", "description": "...", "accounting_entries": [...], "inventory_entries": [...], "gst": {{...}}, "total_amount": 0, "partner_name": "...", "partner_id": "..."}},
+    ...more entries...
+  ]
+}}
 ```"""
 
     try:
-        resp = await _call_llm(system_prompt, req.message, "gpt-4o-mini")
+        resp = await _call_llm(system_prompt, req.message, "gpt-4o")
 
-        # Try to parse as JSON action
+        # Try to parse as JSON action(s)
         try:
             data = _parse_json(resp)
-            if isinstance(data, dict) and data.get("action_type"):
-                # Save as pending entry for preview
-                pending_id = str(uuid.uuid4())
-                await db.ai_pending_entries.insert_one({
-                    "_id": pending_id,
-                    "id": pending_id,
-                    "company_id": cid,
-                    "user_id": current_user["user_id"],
-                    "user_name": (await db.users.find_one({"id": current_user["user_id"]}, {"name": 1, "_id": 0}) or {}).get("name", ""),
-                    "action_type": data["action_type"],
-                    "entries": data,
-                    "original_message": req.message,
-                    "status": "pending",
-                    "created_at": datetime.now(timezone.utc).isoformat(),
-                    "source": "chat",
-                })
-                return {
-                    "type": "preview",
-                    "pending_id": pending_id,
-                    "message": data.get("description", "AI has prepared the following entries for your review."),
-                    "entries": data,
-                }
+            entries_list = _ensure_batch(data)
+
+            if entries_list and isinstance(entries_list[0], dict) and entries_list[0].get("action_type"):
+                if len(entries_list) == 1:
+                    # Single entry — same as before
+                    entry = entries_list[0]
+                    pending_id = str(uuid.uuid4())
+                    await db.ai_pending_entries.insert_one({
+                        "_id": pending_id,
+                        "id": pending_id,
+                        "company_id": cid,
+                        "user_id": current_user["user_id"],
+                        "user_name": (await db.users.find_one({"id": current_user["user_id"]}, {"name": 1, "_id": 0}) or {}).get("name", ""),
+                        "action_type": entry["action_type"],
+                        "entries": entry,
+                        "original_message": req.message,
+                        "status": "pending",
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                        "source": "chat",
+                    })
+                    return {
+                        "type": "preview",
+                        "pending_id": pending_id,
+                        "message": entry.get("description", "AI has prepared the following entries for your review."),
+                        "entries": entry,
+                    }
+                else:
+                    # Multiple entries — batch mode
+                    batch_ids = []
+                    user_name = (await db.users.find_one({"id": current_user["user_id"]}, {"name": 1, "_id": 0}) or {}).get("name", "")
+                    now_iso = datetime.now(timezone.utc).isoformat()
+                    batch_ref = str(uuid.uuid4())[:8]
+                    for idx, entry in enumerate(entries_list):
+                        pending_id = str(uuid.uuid4())
+                        await db.ai_pending_entries.insert_one({
+                            "_id": pending_id,
+                            "id": pending_id,
+                            "company_id": cid,
+                            "user_id": current_user["user_id"],
+                            "user_name": user_name,
+                            "action_type": entry.get("action_type", "journal_entry"),
+                            "entries": entry,
+                            "original_message": req.message,
+                            "status": "pending",
+                            "created_at": now_iso,
+                            "source": "chat",
+                            "batch_ref": batch_ref,
+                            "batch_index": idx,
+                        })
+                        batch_ids.append({"pending_id": pending_id, "entries": entry})
+                    return {
+                        "type": "batch_preview",
+                        "batch_ref": batch_ref,
+                        "message": f"AI has prepared {len(batch_ids)} entries for your review.",
+                        "batch": batch_ids,
+                        "total_count": len(batch_ids),
+                    }
         except (json.JSONDecodeError, ValueError):
             pass
 
@@ -322,10 +409,12 @@ Analyze the uploaded document and extract ALL structured data.
 {context_block}
 
 STEP 1: Detect document type (purchase_invoice, sales_invoice, bank_statement, stock_report, expense_bill, delivery_challan, purchase_order, transport_receipt, other)
-STEP 2: Extract all data fields
+STEP 2: Extract all data fields — process EVERY row/line item in the document
 STEP 3: Map to accounting entries + inventory entries + GST
 
-ALWAYS RESPOND IN THIS EXACT JSON:
+IMPORTANT: If the document contains MULTIPLE transactions/invoices/entries (e.g. a spreadsheet with many rows, a bank statement with many transactions), you MUST create a SEPARATE entry for each transaction.
+
+For a SINGLE transaction, respond with:
 ```json
 {{
   "document_type": "...",
@@ -367,8 +456,30 @@ ALWAYS RESPOND IN THIS EXACT JSON:
 }}
 ```
 
+For MULTIPLE transactions/entries from the document, respond with:
+```json
+{{
+  "batch_entries": [
+    {{
+      "document_type": "...",
+      "confidence": 0.95,
+      "action_type": "...",
+      "description": "Entry 1 — ...",
+      "accounting_entries": [...],
+      "inventory_entries": [...],
+      "gst": {{"cgst": 0, "sgst": 0, "igst": 0}},
+      "total_amount": 0,
+      "partner_name": "...",
+      "partner_id": "..."
+    }},
+    ...more entries...
+  ]
+}}
+```
+
 Match vendors/products to EXISTING partners/products when possible.
-Use correction mappings to apply learned renames."""
+Use correction mappings to apply learned renames.
+Process EVERY data row — do not skip or summarize multiple rows into one."""
 
     user_msg = message or f"Analyze this uploaded document: {fname}"
 
@@ -378,40 +489,82 @@ Use correction mappings to apply learned renames."""
             resp = await _call_vision(system_prompt, user_msg, b64)
         else:
             file_text = _extract_file_text(content, fname)
-            if len(file_text) > 15000:
-                file_text = file_text[:15000] + "\n... [truncated]"
-            resp = await _call_llm(system_prompt, f"{user_msg}\n\nFILE CONTENT:\n{file_text}", "gpt-4o-mini")
+            # For very large files, summarize intelligently
+            if len(file_text) > 60000:
+                # Take first part (headers and initial data) and last part (summary)
+                file_text = file_text[:40000] + "\n\n... [MIDDLE SECTION TRUNCATED - file too large] ...\n\n" + file_text[-15000:]
+            elif len(file_text) > 30000:
+                file_text = file_text[:30000] + "\n... [truncated, remaining data follows same pattern]"
+            resp = await _call_llm(system_prompt, f"{user_msg}\n\nFILE CONTENT:\n{file_text}", "gpt-4o")
 
         data = _parse_json(resp)
+        entries_list = _ensure_batch(data)
 
-        # Save as pending
-        pending_id = str(uuid.uuid4())
-        await db.ai_pending_entries.insert_one({
-            "_id": pending_id,
-            "id": pending_id,
-            "company_id": cid,
-            "user_id": current_user["user_id"],
-            "user_name": (await db.users.find_one({"id": current_user["user_id"]}, {"name": 1, "_id": 0}) or {}).get("name", ""),
-            "action_type": data.get("action_type", "unknown"),
-            "entries": data,
-            "original_message": user_msg,
-            "file_url": file_url,
-            "file_name": fname,
-            "status": "pending",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "source": "file_upload",
-        })
+        now_iso = datetime.now(timezone.utc).isoformat()
+        user_name = (await db.users.find_one({"id": current_user["user_id"]}, {"name": 1, "_id": 0}) or {}).get("name", "")
 
-        return {
-            "type": "preview",
-            "pending_id": pending_id,
-            "message": data.get("description", f"Analyzed {fname} — review the entries below."),
-            "document_type": data.get("document_type", "unknown"),
-            "confidence": data.get("confidence", 0),
-            "entries": data,
-            "file_url": file_url,
-            "file_name": fname,
-        }
+        if len(entries_list) == 1:
+            # Single entry
+            entry = entries_list[0]
+            pending_id = str(uuid.uuid4())
+            await db.ai_pending_entries.insert_one({
+                "_id": pending_id,
+                "id": pending_id,
+                "company_id": cid,
+                "user_id": current_user["user_id"],
+                "user_name": user_name,
+                "action_type": entry.get("action_type", "unknown"),
+                "entries": entry,
+                "original_message": user_msg,
+                "file_url": file_url,
+                "file_name": fname,
+                "status": "pending",
+                "created_at": now_iso,
+                "source": "file_upload",
+            })
+            return {
+                "type": "preview",
+                "pending_id": pending_id,
+                "message": entry.get("description", f"Analyzed {fname} — review the entries below."),
+                "document_type": entry.get("document_type", "unknown"),
+                "confidence": entry.get("confidence", 0),
+                "entries": entry,
+                "file_url": file_url,
+                "file_name": fname,
+            }
+        else:
+            # Multiple entries — batch mode
+            batch_ids = []
+            batch_ref = str(uuid.uuid4())[:8]
+            for idx, entry in enumerate(entries_list):
+                pending_id = str(uuid.uuid4())
+                await db.ai_pending_entries.insert_one({
+                    "_id": pending_id,
+                    "id": pending_id,
+                    "company_id": cid,
+                    "user_id": current_user["user_id"],
+                    "user_name": user_name,
+                    "action_type": entry.get("action_type", "unknown"),
+                    "entries": entry,
+                    "original_message": user_msg,
+                    "file_url": file_url,
+                    "file_name": fname,
+                    "status": "pending",
+                    "created_at": now_iso,
+                    "source": "file_upload",
+                    "batch_ref": batch_ref,
+                    "batch_index": idx,
+                })
+                batch_ids.append({"pending_id": pending_id, "entries": entry})
+            return {
+                "type": "batch_preview",
+                "batch_ref": batch_ref,
+                "message": f"Analyzed {fname} — found {len(batch_ids)} entries for your review.",
+                "batch": batch_ids,
+                "total_count": len(batch_ids),
+                "file_url": file_url,
+                "file_name": fname,
+            }
 
     except json.JSONDecodeError:
         return {"type": "error", "message": "Could not parse AI response", "raw": resp[:500] if resp else ""}
@@ -592,6 +745,51 @@ async def reject_entry(req: RejectRequest, current_user: dict = Depends(get_curr
         "timestamp": datetime.now(timezone.utc).isoformat(),
     })
     return {"status": "rejected"}
+
+
+# ============ 4b. BATCH APPROVE ============
+
+@router.post("/batch-approve")
+async def batch_approve(req: BatchApproveRequest, current_user: dict = Depends(get_current_user)):
+    """Approve multiple pending entries at once."""
+    if current_user['role'] == UserRole.GROUND_STAFF:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    all_results = []
+    errors = []
+    for pid in req.pending_ids:
+        try:
+            # Reuse single approve logic
+            inner_req = ApproveRequest(pending_id=pid)
+            result = await approve_entry(inner_req, current_user)
+            all_results.append({"pending_id": pid, "status": "posted", "results": result.get("results", [])})
+        except Exception as e:
+            errors.append({"pending_id": pid, "error": str(e)})
+
+    return {
+        "status": "batch_posted",
+        "total_approved": len(all_results),
+        "total_errors": len(errors),
+        "results": all_results,
+        "errors": errors,
+        "message": f"Successfully posted {len(all_results)} of {len(req.pending_ids)} entries.",
+    }
+
+
+# ============ 4c. BATCH REJECT ============
+
+@router.post("/batch-reject")
+async def batch_reject(req: BatchApproveRequest, current_user: dict = Depends(get_current_user)):
+    """Reject multiple pending entries at once."""
+    count = 0
+    for pid in req.pending_ids:
+        try:
+            inner_req = RejectRequest(pending_id=pid)
+            await reject_entry(inner_req, current_user)
+            count += 1
+        except Exception:
+            pass
+    return {"status": "batch_rejected", "total_rejected": count}
 
 
 # ============ 5. HISTORY ============

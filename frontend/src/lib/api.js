@@ -272,10 +272,12 @@ export const aiAssistantApi = {
     fd.append('file', file);
     fd.append('message', message || '');
     if (companyId) fd.append('company_id', companyId);
-    return api.post('/ai-assistant/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 60000 });
+    return api.post('/ai-assistant/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 });
   },
   approve: (pendingId, entries) => api.post('/ai-assistant/approve', { pending_id: pendingId, entries }),
   reject: (pendingId) => api.post('/ai-assistant/reject', { pending_id: pendingId }),
+  batchApprove: (pendingIds) => api.post('/ai-assistant/batch-approve', { pending_ids: pendingIds }),
+  batchReject: (pendingIds) => api.post('/ai-assistant/batch-reject', { pending_ids: pendingIds }),
   history: (companyId) => api.get('/ai-assistant/history', { params: { company_id: companyId } }),
   auditTrail: (companyId) => api.get('/ai-assistant/audit-trail', { params: { company_id: companyId } }),
   auditStats: (companyId) => api.get('/ai-assistant/audit-stats', { params: { company_id: companyId } }),

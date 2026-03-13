@@ -254,6 +254,191 @@ function PreviewPanel({ entries, pendingId, onApprove, onReject, onEdit, company
   );
 }
 
+// ============ BATCH PREVIEW PANEL ============
+function BatchPreviewPanel({ batch, onDone, companyId }) {
+  const [statuses, setStatuses] = useState(() =>
+    batch.map(() => ({ status: 'pending', submitting: false }))
+  );
+  const [batchSubmitting, setBatchSubmitting] = useState(false);
+  const [expandedIdx, setExpandedIdx] = useState(null);
+
+  const approveOne = async (idx) => {
+    const item = batch[idx];
+    setStatuses(prev => prev.map((s, i) => i === idx ? { ...s, submitting: true } : s));
+    try {
+      await aiAssistantApi.approve(item.pending_id, null);
+      setStatuses(prev => prev.map((s, i) => i === idx ? { status: 'approved', submitting: false } : s));
+    } catch {
+      setStatuses(prev => prev.map((s, i) => i === idx ? { status: 'error', submitting: false } : s));
+    }
+  };
+
+  const rejectOne = async (idx) => {
+    const item = batch[idx];
+    try {
+      await aiAssistantApi.reject(item.pending_id);
+      setStatuses(prev => prev.map((s, i) => i === idx ? { status: 'rejected', submitting: false } : s));
+    } catch {
+      toast.error('Failed to reject');
+    }
+  };
+
+  const approveAll = async () => {
+    setBatchSubmitting(true);
+    const pendingIds = batch
+      .filter((_, i) => statuses[i].status === 'pending')
+      .map(b => b.pending_id);
+    try {
+      const res = await aiAssistantApi.batchApprove(pendingIds);
+      const d = res.data;
+      toast.success(d.message || `Approved ${d.total_approved} entries`);
+      setStatuses(prev => prev.map((s) =>
+        s.status === 'pending' ? { status: 'approved', submitting: false } : s
+      ));
+    } catch { toast.error('Batch approve failed'); }
+    finally { setBatchSubmitting(false); }
+  };
+
+  const rejectAll = async () => {
+    const pendingIds = batch
+      .filter((_, i) => statuses[i].status === 'pending')
+      .map(b => b.pending_id);
+    try {
+      await aiAssistantApi.batchReject(pendingIds);
+      toast.info(`Rejected ${pendingIds.length} entries`);
+      setStatuses(prev => prev.map((s) =>
+        s.status === 'pending' ? { status: 'rejected', submitting: false } : s
+      ));
+    } catch { toast.error('Batch reject failed'); }
+  };
+
+  const pendingCount = statuses.filter(s => s.status === 'pending').length;
+  const approvedCount = statuses.filter(s => s.status === 'approved').length;
+  const allDone = pendingCount === 0;
+
+  return (
+    <div className="space-y-3 mt-3 p-4 rounded-xl border bg-card/50" data-testid="ai-batch-preview">
+      {/* Batch Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <FileSpreadsheet size={16} className="text-blue-500" />
+          <span className="font-semibold text-sm">Batch Preview — {batch.length} Entries Found</span>
+        </div>
+        <div className="flex gap-1">
+          <Badge variant="outline" className="text-[10px]">{pendingCount} pending</Badge>
+          <Badge className="text-[10px] bg-green-600">{approvedCount} approved</Badge>
+        </div>
+      </div>
+
+      {/* Batch Actions */}
+      {!allDone && (
+        <div className="flex gap-2">
+          <Button size="sm" onClick={approveAll} disabled={batchSubmitting} className="bg-green-600 hover:bg-green-700" data-testid="batch-approve-all">
+            {batchSubmitting ? <Loader2 size={14} className="animate-spin mr-1" /> : <CheckCircle size={14} className="mr-1" />}
+            Approve All ({pendingCount})
+          </Button>
+          <Button size="sm" variant="destructive" onClick={rejectAll} data-testid="batch-reject-all">
+            <XCircle size={14} className="mr-1" />Reject All
+          </Button>
+        </div>
+      )}
+
+      {allDone && (
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => onDone(approvedCount)} data-testid="batch-done">
+            Done — {approvedCount} approved, {statuses.filter(s => s.status === 'rejected').length} rejected
+          </Button>
+        </div>
+      )}
+
+      {/* Entry List */}
+      <div className="space-y-1.5 max-h-[50vh] overflow-y-auto">
+        {batch.map((item, idx) => {
+          const s = statuses[idx];
+          const entry = item.entries;
+          const expanded = expandedIdx === idx;
+          const accLen = (entry?.accounting_entries || []).length;
+          const invLen = (entry?.inventory_entries || []).length;
+
+          return (
+            <div key={item.pending_id} className={`rounded-lg border p-2.5 transition-colors ${s.status === 'approved' ? 'bg-green-500/5 border-green-500/30' : s.status === 'rejected' ? 'bg-red-500/5 border-red-500/30 opacity-60' : 'bg-card/50 hover:bg-card'}`} data-testid={`batch-entry-${idx}`}>
+              <div className="flex items-center gap-2">
+                {/* Status indicator */}
+                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${s.status === 'approved' ? 'bg-green-500' : s.status === 'rejected' ? 'bg-red-500' : s.status === 'error' ? 'bg-yellow-500' : 'bg-gray-300'}`} />
+
+                {/* Entry summary */}
+                <button className="flex-1 text-left text-xs" onClick={() => setExpandedIdx(expanded ? null : idx)}>
+                  <span className="font-medium">{entry?.description?.slice(0, 80) || `Entry #${idx + 1}`}</span>
+                  <span className="text-muted-foreground ml-2">
+                    {entry?.action_type && `[${entry.action_type.replace('_', ' ')}]`}
+                    {entry?.total_amount > 0 && ` ${fmt(entry.total_amount)}`}
+                    {accLen > 0 && ` · ${accLen} acc.`}
+                    {invLen > 0 && ` · ${invLen} inv.`}
+                  </span>
+                </button>
+
+                {/* Per-entry actions */}
+                {s.status === 'pending' && (
+                  <div className="flex gap-1 flex-shrink-0">
+                    <Button size="icon" className="h-6 w-6 bg-green-600 hover:bg-green-700" onClick={() => approveOne(idx)} disabled={s.submitting}>
+                      {s.submitting ? <Loader2 size={10} className="animate-spin" /> : <CheckCircle size={10} />}
+                    </Button>
+                    <Button size="icon" variant="destructive" className="h-6 w-6" onClick={() => rejectOne(idx)}>
+                      <XCircle size={10} />
+                    </Button>
+                  </div>
+                )}
+                {s.status !== 'pending' && (
+                  <Badge variant={s.status === 'approved' ? 'default' : 'destructive'} className="text-[9px]">{s.status}</Badge>
+                )}
+              </div>
+
+              {/* Expanded details */}
+              {expanded && (
+                <div className="mt-2 space-y-2 pl-4 border-l-2 ml-1">
+                  {(entry?.accounting_entries || []).length > 0 && (
+                    <div className="rounded border overflow-hidden">
+                      <table className="w-full text-xs">
+                        <thead className="bg-muted"><tr><th className="text-left p-1.5">Account</th><th className="text-right p-1.5">Debit</th><th className="text-right p-1.5">Credit</th></tr></thead>
+                        <tbody>
+                          {entry.accounting_entries.map((line, li) => (
+                            <tr key={li} className="border-t">
+                              <td className="p-1.5 font-mono">{line.account_code} {line.account_name}</td>
+                              <td className="p-1.5 text-right">{line.debit > 0 ? fmt(line.debit) : '—'}</td>
+                              <td className="p-1.5 text-right">{line.credit > 0 ? fmt(line.credit) : '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  {(entry?.inventory_entries || []).length > 0 && (
+                    <div className="rounded border overflow-hidden">
+                      <table className="w-full text-xs">
+                        <thead className="bg-muted"><tr><th className="text-left p-1.5">Product</th><th className="text-right p-1.5">Qty</th><th className="text-left p-1.5">Warehouse</th></tr></thead>
+                        <tbody>
+                          {entry.inventory_entries.map((line, li) => (
+                            <tr key={li} className="border-t">
+                              <td className="p-1.5">{line.product_name}</td>
+                              <td className="p-1.5 text-right font-semibold">{line.quantity_change > 0 ? '+' : ''}{line.quantity_change}</td>
+                              <td className="p-1.5">{line.warehouse}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  {entry?.partner_name && <p className="text-xs text-muted-foreground">Partner: {entry.partner_name}</p>}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ============ CHAT MESSAGE COMPONENT ============
 function ChatBubble({ msg }) {
   const isUser = msg.role === 'user';
@@ -282,6 +467,7 @@ export default function AiBusinessAssistant({ companyId }) {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [activePreview, setActivePreview] = useState(null);
+  const [activeBatch, setActiveBatch] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState([]);
   const fileInputRef = useRef(null);
@@ -307,6 +493,9 @@ export default function AiBusinessAssistant({ companyId }) {
       if (data.type === 'preview') {
         addMessage('assistant', data.message);
         setActivePreview({ entries: data.entries, pendingId: data.pending_id });
+      } else if (data.type === 'batch_preview') {
+        addMessage('assistant', data.message);
+        setActiveBatch(data.batch);
       } else {
         addMessage('assistant', data.message);
       }
@@ -329,6 +518,9 @@ export default function AiBusinessAssistant({ companyId }) {
       if (data.type === 'preview') {
         addMessage('assistant', `${data.message}\n\nDocument Type: ${(data.document_type || '').replace('_', ' ')}${data.confidence ? ` (${Math.round(data.confidence * 100)}% confidence)` : ''}`);
         setActivePreview({ entries: data.entries, pendingId: data.pending_id });
+      } else if (data.type === 'batch_preview') {
+        addMessage('assistant', data.message);
+        setActiveBatch(data.batch);
       } else if (data.type === 'error') {
         addMessage('assistant', `Could not process file: ${data.message}`);
       }
@@ -346,6 +538,11 @@ export default function AiBusinessAssistant({ companyId }) {
   const handleRejected = () => {
     addMessage('assistant', 'Entry discarded. What would you like to do next?');
     setActivePreview(null);
+  };
+
+  const handleBatchDone = (approvedCount) => {
+    addMessage('assistant', `Batch processing complete! ${approvedCount} entries posted. What would you like to do next?`);
+    setActiveBatch(null);
   };
 
   const loadHistory = async () => {
@@ -385,6 +582,13 @@ export default function AiBusinessAssistant({ companyId }) {
             pendingId={activePreview.pendingId}
             onApprove={handleApproved}
             onReject={handleRejected}
+            companyId={companyId}
+          />
+        )}
+        {activeBatch && (
+          <BatchPreviewPanel
+            batch={activeBatch}
+            onDone={handleBatchDone}
             companyId={companyId}
           />
         )}
