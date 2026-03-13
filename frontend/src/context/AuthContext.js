@@ -76,10 +76,11 @@ export const AuthProvider = ({ children }) => {
         const response = await axios.get(`${API}/auth/me`, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        setUser(response.data);
+        const userData = response.data;
+        setUser(userData);
         
         // Initialize WebSocket
-        initializeSocket(token, response.data.id);
+        initializeSocket(token, userData.id);
         
         // Request notification permission
         await requestNotificationPermission();
@@ -149,8 +150,16 @@ export const AuthProvider = ({ children }) => {
     disconnectSocket();
   };
 
+  const hasPermission = (perm) => {
+    if (!user) return false;
+    if (user.role === 'director') return true;
+    const perms = user.permissions || [];
+    if (perms.includes('all')) return true;
+    return perms.includes(perm);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout, isOnline }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, logout, isOnline, hasPermission }}>
       {children}
     </AuthContext.Provider>
   );

@@ -20,6 +20,8 @@ AVAILABLE_PERMISSIONS = [
     "view_dashboard", "view_inventory", "edit_inventory", "view_accounting",
     "edit_accounting", "manage_tasks", "manage_users", "manage_indents",
     "view_reports", "create_reports", "manage_companies", "view_audit_log",
+    "view_tracking", "view_reconciliation", "manage_roles", "view_settings",
+    "view_executive", "view_daily_summary", "view_payroll",
 ]
 
 

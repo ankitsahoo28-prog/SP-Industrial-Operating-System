@@ -18,12 +18,19 @@ const PERMISSION_LABELS = {
   view_accounting: 'View Accounting',
   edit_accounting: 'Edit Accounting',
   manage_tasks: 'Manage Tasks',
-  manage_users: 'Manage Users',
+  manage_users: 'Manage Users / Team',
   manage_indents: 'Manage Indents',
   view_reports: 'View Reports',
   create_reports: 'Create Reports',
   manage_companies: 'Manage Companies',
   view_audit_log: 'View Audit Log',
+  view_tracking: 'View Tracking',
+  view_reconciliation: 'Reconciliation',
+  manage_roles: 'Manage Roles',
+  view_settings: 'View Settings',
+  view_executive: 'Executive Dashboard',
+  view_daily_summary: 'Daily Summary',
+  view_payroll: 'View Payroll',
 };
 
 export default function RoleManagementPage() {

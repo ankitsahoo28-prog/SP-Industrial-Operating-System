@@ -55,7 +55,7 @@ export const indentApi = {
   authorizeIndent: (id, data) => api.patch(`/indents/${id}/authorize`, data),
   deleteIndent: (id) => api.delete(`/indents/${id}`),
 };
-export const inventoryApi = {
+export const oldInventoryApi = {
   getItems: (params) => api.get('/inventory', { params }),
   createItem: (data) => api.post('/inventory', data),
 };

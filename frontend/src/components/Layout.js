@@ -30,7 +30,7 @@ import NotificationBell from '@/components/NotificationBell';
 import ThemeToggle from '@/components/ThemeToggle';
 
 export const Layout = ({ children, role }) => {
-  const { user, logout } = useAuth();
+  const { user, logout, hasPermission } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -38,48 +38,48 @@ export const Layout = ({ children, role }) => {
 
   const getNavItems = () => {
     const base = [
-      { icon: LayoutDashboard, label: t('dashboard'), path: '' },
+      { icon: LayoutDashboard, label: t('dashboard'), path: '', permission: 'view_dashboard' },
     ];
 
     if (role === 'director') {
       return [
         ...base,
-        { icon: Calendar, label: 'Daily Summary', path: '/daily-summary' },
-        { icon: Building2, label: 'Companies', path: '/companies' },
-        { icon: BarChart3, label: 'Executive', path: '/executive' },
-        { icon: Users, label: t('users'), path: '/users' },
-        { icon: ClipboardList, label: t('tasks'), path: '/tasks' },
-        { icon: MapPin, label: t('tracking'), path: '/tracking' },
-        { icon: FileText, label: t('reports'), path: '/reports' },
-        { icon: Package, label: t('indents'), path: '/indents' },
-        { icon: DollarSign, label: t('accounting'), path: '/accounting' },
-        { icon: Warehouse, label: t('inventory'), path: '/inventory' },
-        { icon: ArrowLeftRight, label: 'Reconciliation', path: '/reconciliation' },
-        { icon: Shield, label: 'Roles', path: '/roles' },
-        { icon: History, label: t('audit_trail'), path: '/audit-log' },
-        { icon: Settings, label: t('settings'), path: '/settings' },
+        { icon: Calendar, label: 'Daily Summary', path: '/daily-summary', permission: 'view_daily_summary' },
+        { icon: Building2, label: 'Companies', path: '/companies', permission: 'manage_companies' },
+        { icon: BarChart3, label: 'Executive', path: '/executive', permission: 'view_executive' },
+        { icon: Users, label: t('users'), path: '/users', permission: 'manage_users' },
+        { icon: ClipboardList, label: t('tasks'), path: '/tasks', permission: 'manage_tasks' },
+        { icon: MapPin, label: t('tracking'), path: '/tracking', permission: 'view_tracking' },
+        { icon: FileText, label: t('reports'), path: '/reports', permission: 'view_reports' },
+        { icon: Package, label: t('indents'), path: '/indents', permission: 'manage_indents' },
+        { icon: DollarSign, label: t('accounting'), path: '/accounting', permission: 'view_accounting' },
+        { icon: Warehouse, label: t('inventory'), path: '/inventory', permission: 'view_inventory' },
+        { icon: ArrowLeftRight, label: 'Reconciliation', path: '/reconciliation', permission: 'view_reconciliation' },
+        { icon: Shield, label: 'Roles', path: '/roles', permission: 'manage_roles' },
+        { icon: History, label: t('audit_trail'), path: '/audit-log', permission: 'view_audit_log' },
+        { icon: Settings, label: t('settings'), path: '/settings', permission: 'view_settings' },
       ];
     } else if (role === 'manager') {
       return [
         ...base,
-        { icon: Users, label: t('my_team'), path: '/team' },
-        { icon: ClipboardList, label: t('tasks'), path: '/tasks' },
-        { icon: MapPin, label: t('tracking'), path: '/tracking' },
-        { icon: FileText, label: t('reports'), path: '/reports' },
-        { icon: Package, label: t('indents'), path: '/indents' },
-        { icon: DollarSign, label: t('accounting'), path: '/accounting' },
-        { icon: Warehouse, label: t('inventory'), path: '/inventory' },
+        { icon: Users, label: t('my_team'), path: '/team', permission: 'manage_users' },
+        { icon: ClipboardList, label: t('tasks'), path: '/tasks', permission: 'manage_tasks' },
+        { icon: MapPin, label: t('tracking'), path: '/tracking', permission: 'view_tracking' },
+        { icon: FileText, label: t('reports'), path: '/reports', permission: 'view_reports' },
+        { icon: Package, label: t('indents'), path: '/indents', permission: 'manage_indents' },
+        { icon: DollarSign, label: t('accounting'), path: '/accounting', permission: 'view_accounting' },
+        { icon: Warehouse, label: t('inventory'), path: '/inventory', permission: 'view_inventory' },
       ];
     } else {
       return [
         ...base,
-        { icon: ClipboardList, label: t('my_tasks'), path: '/tasks' },
-        { icon: FileText, label: t('reports'), path: '/reports' },
+        { icon: ClipboardList, label: t('my_tasks'), path: '/tasks', permission: 'manage_tasks' },
+        { icon: FileText, label: t('reports'), path: '/reports', permission: 'view_reports' },
       ];
     }
   };
 
-  const navItems = getNavItems();
+  const navItems = getNavItems().filter(item => hasPermission(item.permission));
   const basePath = `/${role === 'ground_staff' ? 'ground-staff' : role}`;
 
   const handleLogout = () => {

@@ -1,0 +1,92 @@
+{
+  "summary": "Iteration 16 - Role-based access control and Odoo inventory testing. Backend: 21/21 tests passed (100%). Frontend: Director (15 nav items + 8 inventory tabs), Manager (6 nav items + location tracking), Ground Staff (3 nav items + location tracking) all working correctly. BUG FOUND: Custom role user (arun@sp.com) gets NO nav items due to permission filter mismatch.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Layout.js / GroundStaffDashboard.js",
+        "issue": "Custom role user (arun@sp.com) sees NO navigation items because: 1) Ground staff base nav items have permissions (view_dashboard, manage_tasks, view_reports) that aren't in their custom role 2) Custom role only includes (edit_accounting, view_accounting, edit_inventory, view_inventory) 3) All base nav items get filtered out",
+        "selector": "aside nav a",
+        "priority": "HIGH"
+      },
+      {
+        "component": "GroundStaffDashboard.js",
+        "issue": "No routes defined for /accounting or /inventory even if ground_staff user has those permissions",
+        "selector": "N/A",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_role_inventory.py",
+    "/app/test_reports/pytest/role_inventory_results.xml"
+  ],
+  "action_items": [
+    "Fix custom role permission handling - either: (a) Include 'view_dashboard' in all custom roles by default, OR (b) Don't filter Dashboard nav item by permission for logged-in users, OR (c) Add the custom role permissions to user's permissions array instead of replacing defaults",
+    "Add routes for /accounting and /inventory to GroundStaffDashboard.js if user has those permissions",
+    "Modify Layout.js getNavItems() to include nav items based on user's actual permissions, not just system role"
+  ],
+  "critical_code_review_comments": [
+    "BUG: Custom role user arun@sp.com (ground_staff with job_role) gets permissions ['edit_accounting', 'view_accounting', 'edit_inventory', 'view_inventory'] but these don't match any nav item permissions in the ground_staff base list",
+    "The Layout.js getNavItems() returns base items for system role, then filters by hasPermission() - this means custom roles need to include ALL permissions including view_dashboard for basic navigation",
+    "GroundStaffDashboard.js Routes only include /tasks and /reports - no routes for /accounting or /inventory"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_role_inventory.py"
+  ],
+  "success_rate": {
+    "backend": "100% (21/21 passed)",
+    "frontend": "90% - Director/Manager/Ground Staff working, Custom Role user broken"
+  },
+  "test_credentials": {
+    "director": "director@sp.com / password123",
+    "manager": "manager@sp.com / password123",
+    "staff": "staff@sp.com / password123",
+    "custom_role_user": "arun@sp.com / password123"
+  },
+  "seed_data_creation": "Created TEST_ prefixed products, stock moves, and roles during backend testing",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Custom role access is broken - user arun@sp.com sees no nav items. The issue is in Layout.js permission filtering logic and missing routes in GroundStaffDashboard.js. Director sees all 15 nav items and 8 inventory tabs. Manager sees 6 nav items with location tracking Active. Ground Staff sees 3 nav items (Dashboard, My Tasks, Reports) with location tracking Active. All backend inventory APIs working: /api/inv/dashboard, /api/inv/products, /api/inv/warehouses, /api/inv/categories, /api/inv/stock-moves, /api/inv/reorder-check, /api/inv/valuation. Role management APIs working: /api/job-roles, /api/job-roles/permissions.",
+  "verified_features": {
+    "director": {
+      "nav_items": ["Dashboard", "Daily Summary", "Companies", "Executive", "Users", "Tasks", "Tracking", "Reports", "Indents", "Accounting", "Inventory", "Reconciliation", "Roles", "Audit Trail", "Settings"],
+      "inventory_tabs": ["Overview", "Products", "Moves", "Adjust", "Warehouses", "Reorder", "Valuation", "Config"],
+      "roles_page": "Create Role button present, existing roles displayed"
+    },
+    "manager": {
+      "nav_items": ["Dashboard", "Tasks", "Reports", "Indents", "Accounting", "Inventory"],
+      "location_tracking": "Active (always on, no toggle)",
+      "correctly_hidden": ["Executive", "Companies", "Roles", "Audit Trail", "Settings", "Reconciliation"]
+    },
+    "ground_staff": {
+      "nav_items": ["Dashboard", "My Tasks", "Reports"],
+      "location_tracking": "Active (always on, no toggle)",
+      "correctly_hidden": ["Inventory", "Accounting", "Companies", "Roles", "Settings", "Users", "Indents"]
+    },
+    "custom_role_user_arun": {
+      "expected": ["Dashboard", "Accounting", "Inventory"],
+      "actual": "NO NAV ITEMS - BUG",
+      "permissions_from_api": ["edit_accounting", "view_accounting", "edit_inventory", "view_inventory"]
+    }
+  },
+  "mocked_apis": {
+    "has_mocked_apis": true,
+    "mocked_apis_list": ["AI Predictive Analytics", "LiDAR Scanning"]
+  },
+  "bugs_found": [
+    {
+      "severity": "HIGH",
+      "issue": "Custom role user (arun@sp.com) sees no navigation items",
+      "root_cause": "1) Layout.js getNavItems() returns base list for system role (ground_staff), which only includes Dashboard/Tasks/Reports with permissions view_dashboard/manage_tasks/view_reports. 2) Custom role only has edit_accounting/view_accounting/edit_inventory/view_inventory. 3) hasPermission filter removes all items since none match.",
+      "affected_files": ["/app/frontend/src/components/Layout.js", "/app/frontend/src/pages/GroundStaffDashboard.js"],
+      "reproduction_steps": "1. Login as arun@sp.com / password123. 2. Observe empty sidebar navigation. 3. Check console - user.permissions = ['edit_accounting', 'view_accounting', 'edit_inventory', 'view_inventory']",
+      "suggested_fix": "Modify custom role system to: (a) Always include view_dashboard permission for all roles, (b) Extend Layout.js getNavItems() to include additional items based on user permissions not just system role, (c) Add accounting/inventory routes to GroundStaffDashboard"
+    }
+  ]
+}

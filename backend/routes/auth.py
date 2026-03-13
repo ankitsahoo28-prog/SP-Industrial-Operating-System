@@ -29,6 +29,25 @@ async def register(user_data: UserCreate):
     return {'user': user, 'token': token}
 
 
+async def _get_user_permissions(user_doc: dict) -> list:
+    """Resolve permissions for a user based on their job_role_id or system role."""
+    # Directors get all permissions
+    if user_doc.get('role') == 'director':
+        return ["all"]
+    # Check if user has a custom job role assigned
+    job_role_id = user_doc.get('job_role_id')
+    if job_role_id:
+        role_doc = await db.job_roles.find_one({"id": job_role_id}, {"_id": 0})
+        if role_doc and role_doc.get("permissions"):
+            return role_doc["permissions"]
+    # Default permissions for managers and ground staff (if no custom role)
+    if user_doc.get('role') == 'manager':
+        return ["view_dashboard", "view_inventory", "edit_inventory", "view_accounting",
+                "edit_accounting", "manage_tasks", "manage_indents", "view_reports", "create_reports"]
+    # Ground staff defaults
+    return ["view_dashboard", "manage_tasks", "view_reports"]
+
+
 @router.post("/auth/login")
 async def login(credentials: UserLogin):
     user_doc = await db.users.find_one({'email': credentials.email}, {'_id': 0})
@@ -44,7 +63,13 @@ async def login(credentials: UserLogin):
         user_doc['created_at'] = datetime.fromisoformat(user_doc['created_at'])
     user = User(**{k: v for k, v in user_doc.items() if k != 'password_hash'})
     token = create_jwt_token(user.id, user.role.value)
-    return {'user': user, 'token': token}
+    permissions = await _get_user_permissions(user_doc)
+    user_resp = user.model_dump()
+    user_resp['permissions'] = permissions
+    user_resp['job_role_id'] = user_doc.get('job_role_id')
+    if isinstance(user_resp.get('created_at'), datetime):
+        user_resp['created_at'] = user_resp['created_at'].isoformat()
+    return {'user': user_resp, 'token': token}
 
 
 @router.get("/auth/me")
@@ -54,7 +79,14 @@ async def get_me(current_user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="User not found")
     if isinstance(user_doc.get('created_at'), str):
         user_doc['created_at'] = datetime.fromisoformat(user_doc['created_at'])
-    return User(**user_doc)
+    user = User(**user_doc)
+    permissions = await _get_user_permissions(user_doc)
+    user_resp = user.model_dump()
+    user_resp['permissions'] = permissions
+    user_resp['job_role_id'] = user_doc.get('job_role_id')
+    if isinstance(user_resp.get('created_at'), datetime):
+        user_resp['created_at'] = user_resp['created_at'].isoformat()
+    return user_resp
 
 
 @router.post("/auth/self-register")

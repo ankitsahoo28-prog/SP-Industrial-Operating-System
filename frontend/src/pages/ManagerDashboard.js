@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { taskApi } from '@/lib/api';
-import { ClipboardList, Users, FileText, CheckCircle2, Clock } from 'lucide-react';
+import { taskApi, locationApi } from '@/lib/api';
+import { ClipboardList, Users, FileText, CheckCircle2, Clock, MapPin } from 'lucide-react';
 import TeamPage from './manager/TeamPage';
 import TasksPage from './manager/TasksPage';
 import TrackingPage from './manager/TrackingPage';
@@ -32,6 +32,8 @@ const StatCard = ({ icon: Icon, title, value, description, color }) => (
 const DashboardHome = () => {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [trackingActive, setTrackingActive] = useState(false);
+  const intervalRef = useRef(null);
 
   useEffect(() => {
     const fetchTasks = async () => {
@@ -46,6 +48,33 @@ const DashboardHome = () => {
     };
 
     fetchTasks();
+  }, []);
+
+  // Auto-start location tracking — always on, no toggle
+  useEffect(() => {
+    if (!('geolocation' in navigator)) return;
+
+    const recordLocation = () => {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          try {
+            await locationApi.record({
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude,
+              accuracy: pos.coords.accuracy,
+            });
+          } catch (err) { console.error('Location record failed:', err); }
+        },
+        (err) => console.error('Geolocation error:', err),
+        { enableHighAccuracy: true }
+      );
+    };
+
+    recordLocation();
+    setTrackingActive(true);
+    intervalRef.current = setInterval(recordLocation, 5 * 60 * 1000);
+
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, []);
 
   if (loading) {
@@ -67,35 +96,23 @@ const DashboardHome = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard
-          icon={ClipboardList}
-          title="Total Tasks"
-          value={tasks.length}
-          description="Assigned to your team"
-          color="bg-accent"
-        />
-        <StatCard
-          icon={Clock}
-          title="Pending"
-          value={pendingTasks}
-          description="Awaiting action"
-          color="bg-warning"
-        />
-        <StatCard
-          icon={CheckCircle2}
-          title="Completed"
-          value={completedTasks}
-          description="Successfully done"
-          color="bg-success"
-        />
-        <StatCard
-          icon={Users}
-          title="Team"
-          value="View"
-          description="Manage ground staff"
-          color="bg-blue-500"
-        />
+        <StatCard icon={ClipboardList} title="Total Tasks" value={tasks.length} description="Assigned to your team" color="bg-accent" />
+        <StatCard icon={Clock} title="Pending" value={pendingTasks} description="Awaiting action" color="bg-warning" />
+        <StatCard icon={CheckCircle2} title="Completed" value={completedTasks} description="Successfully done" color="bg-success" />
+        <StatCard icon={Users} title="Team" value="View" description="Manage ground staff" color="bg-blue-500" />
       </div>
+
+      {/* Location Tracking Status — Always ON */}
+      <Card className="border-l-4 border-l-accent">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-3">
+            <MapPin size={18} className="text-accent" />
+            <span className="text-sm font-medium">Location Tracking</span>
+            <div className={`w-2 h-2 rounded-full ${trackingActive ? 'bg-green-500 animate-pulse' : 'bg-muted'}`} />
+            <span className="text-xs text-muted-foreground" data-testid="manager-tracking-status">{trackingActive ? 'Active' : 'Starting...'}</span>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
