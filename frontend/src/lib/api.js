@@ -211,3 +211,36 @@ export const odooApi = {
     scanBill: (formData) => api.post('/acc/ai/scan-bill', formData, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 60000 }),
   },
 };
+
+// ======== INVENTORY API ========
+export const inventoryApi = {
+  dashboard: (params) => api.get('/inv/dashboard', { params }),
+  products: {
+    list: (params) => api.get('/inv/products', { params }),
+    get: (id) => api.get(`/inv/products/${id}`),
+    create: (data) => api.post('/inv/products', data),
+    update: (id, data) => api.put(`/inv/products/${id}`, data),
+  },
+  warehouses: {
+    list: (params) => api.get('/inv/warehouses', { params }),
+    create: (data) => api.post('/inv/warehouses', data),
+  },
+  locations: { list: (params) => api.get('/inv/locations', { params }) },
+  categories: {
+    list: (params) => api.get('/inv/categories', { params }),
+    create: (data) => api.post('/inv/categories', data),
+  },
+  uoms: { list: (params) => api.get('/inv/uoms', { params }) },
+  stockMoves: {
+    list: (params) => api.get('/inv/stock-moves', { params }),
+    create: (data) => api.post('/inv/stock-moves', data),
+    confirm: (id) => api.post(`/inv/stock-moves/${id}/confirm`),
+    cancel: (id) => api.post(`/inv/stock-moves/${id}/cancel`),
+  },
+  adjustments: { create: (data) => api.post('/inv/adjustments', data) },
+  reorderCheck: (params) => api.get('/inv/reorder-check', { params }),
+  lots: (params) => api.get('/inv/lots', { params }),
+  valuation: (params) => api.get('/inv/valuation', { params }),
+  quants: (params) => api.get('/inv/quants', { params }),
+};
+

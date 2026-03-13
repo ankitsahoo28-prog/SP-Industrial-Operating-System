@@ -6,7 +6,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://journal-entries-1.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://odoo-advance-pay.preview.emergentagent.com')
 
 # Test credentials
 DIRECTOR_EMAIL = "director@sp.com"

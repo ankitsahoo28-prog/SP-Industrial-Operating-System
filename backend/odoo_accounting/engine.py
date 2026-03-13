@@ -282,13 +282,21 @@ async def create_invoice_move(db, invoice_data: dict, company_id: str, user_id: 
         total_untaxed += subtotal
 
         tax_amount = 0
-        for tax_id in (line.get("tax_ids") or []):
-            tax = await db.odoo_taxes.find_one({"id": tax_id, "company_id": company_id}, {"_id": 0})
-            if tax:
-                if tax["tax_type"] == "percent":
-                    tax_amount += subtotal * tax["amount"] / 100
-                else:
-                    tax_amount += tax["amount"]
+        gst_rate = line.get("gst_rate", 0)
+        gst_type = invoice_data.get("gst_type", "intra")
+
+        # GST calculation from line-level gst_rate
+        if gst_rate > 0:
+            tax_amount = subtotal * gst_rate / 100
+        else:
+            # Fallback to tax_ids for backward compatibility
+            for tax_id in (line.get("tax_ids") or []):
+                tax = await db.odoo_taxes.find_one({"id": tax_id, "company_id": company_id}, {"_id": 0})
+                if tax:
+                    if tax["tax_type"] == "percent":
+                        tax_amount += subtotal * tax["amount"] / 100
+                    else:
+                        tax_amount += tax["amount"]
         total_tax += tax_amount
 
         acct_id = line.get("account_id")
@@ -319,6 +327,7 @@ async def create_invoice_move(db, invoice_data: dict, company_id: str, user_id: 
             "tax_ids": line.get("tax_ids", []), "subtotal": round(subtotal, 2),
             "tax_amount": round(tax_amount, 2), "total": round(line_total, 2),
             "account_id": acct_id,
+            "gst_rate": gst_rate, "gst_type": gst_type,
         })
 
     total_amount = total_untaxed + total_tax
@@ -342,25 +351,66 @@ async def create_invoice_move(db, invoice_data: dict, company_id: str, user_id: 
         move_lines.append(ctr_line)
 
     if total_tax > 0:
-        tax_acct = await db.odoo_accounts.find_one(
-            {"company_id": company_id, "code": {"$in": ["2210", "2220"]}}, {"_id": 0})
-        if tax_acct:
-            is_tax_credit = move_type in ("out_invoice", "in_refund")
-            tax_line = {
-                "id": str(uuid.uuid4()), "move_id": move_id, "account_id": tax_acct["id"],
-                "partner_id": None, "name": "Tax",
-                "debit": 0 if is_tax_credit else round(total_tax, 2),
-                "credit": round(total_tax, 2) if is_tax_credit else 0,
-                "tax_ids": [], "date": inv_date, "parent_state": "draft",
-                "company_id": company_id, "reconciled": False,
-                "created_at": now.isoformat(),
-            }
-            move_lines.append(tax_line)
+        gst_type = invoice_data.get("gst_type", "intra")
+        is_tax_credit = move_type in ("out_invoice", "in_refund")
+
+        if gst_type == "intra":
+            # CGST
+            cgst_acct = await db.odoo_accounts.find_one(
+                {"company_id": company_id, "code": "2210"}, {"_id": 0})
+            if not cgst_acct:
+                cgst_acct = await db.odoo_accounts.find_one(
+                    {"company_id": company_id, "account_type": "current_liability", "name": {"$regex": "CGST|GST", "$options": "i"}}, {"_id": 0})
+            if cgst_acct:
+                half_tax = round(total_tax / 2, 2)
+                move_lines.append({
+                    "id": str(uuid.uuid4()), "move_id": move_id, "account_id": cgst_acct["id"],
+                    "partner_id": None, "name": "CGST",
+                    "debit": 0 if is_tax_credit else half_tax,
+                    "credit": half_tax if is_tax_credit else 0,
+                    "tax_ids": [], "date": inv_date, "parent_state": "draft",
+                    "company_id": company_id, "reconciled": False, "created_at": now.isoformat(),
+                })
+            # SGST
+            sgst_acct = await db.odoo_accounts.find_one(
+                {"company_id": company_id, "code": "2220"}, {"_id": 0})
+            if not sgst_acct:
+                sgst_acct = cgst_acct  # Use same account if no SGST account
+            if sgst_acct:
+                half_tax2 = round(total_tax - round(total_tax / 2, 2), 2)
+                move_lines.append({
+                    "id": str(uuid.uuid4()), "move_id": move_id, "account_id": sgst_acct["id"],
+                    "partner_id": None, "name": "SGST",
+                    "debit": 0 if is_tax_credit else half_tax2,
+                    "credit": half_tax2 if is_tax_credit else 0,
+                    "tax_ids": [], "date": inv_date, "parent_state": "draft",
+                    "company_id": company_id, "reconciled": False, "created_at": now.isoformat(),
+                })
+        else:
+            # IGST (inter-state)
+            igst_acct = await db.odoo_accounts.find_one(
+                {"company_id": company_id, "code": {"$in": ["2210", "2220"]}}, {"_id": 0})
+            if igst_acct:
+                move_lines.append({
+                    "id": str(uuid.uuid4()), "move_id": move_id, "account_id": igst_acct["id"],
+                    "partner_id": None, "name": "IGST",
+                    "debit": 0 if is_tax_credit else round(total_tax, 2),
+                    "credit": round(total_tax, 2) if is_tax_credit else 0,
+                    "tax_ids": [], "date": inv_date, "parent_state": "draft",
+                    "company_id": company_id, "reconciled": False, "created_at": now.isoformat(),
+                })
+
+    # Handle advance adjustment
+    advance_adjustment = invoice_data.get("advance_adjustment", 0)
+    if advance_adjustment > 0:
+        total_amount = max(0, total_amount - advance_adjustment)
 
     move_doc["amount_untaxed"] = round(total_untaxed, 2)
     move_doc["amount_tax"] = round(total_tax, 2)
-    move_doc["amount_total"] = round(total_amount, 2)
+    move_doc["amount_total"] = round(total_untaxed + total_tax, 2)
     move_doc["amount_residual"] = round(total_amount, 2)
+    move_doc["advance_adjustment"] = round(advance_adjustment, 2)
+    move_doc["gst_type"] = invoice_data.get("gst_type", "intra")
     move_doc["invoice_lines"] = stored_inv_lines
     move_doc["total_debit"] = round(sum(l["debit"] for l in move_lines), 2)
     move_doc["total_credit"] = round(sum(l["credit"] for l in move_lines), 2)
@@ -449,6 +499,8 @@ async def register_payment(db, payment_data: dict, company_id: str, user_id: str
         "ref": payment_data.get("ref", ""), "date": pay_date,
         "move_id": move_id, "state": "draft",
         "invoice_ids": payment_data.get("invoice_ids", []),
+        "is_advance": payment_data.get("is_advance", False),
+        "advance_balance": round(amount, 2) if payment_data.get("is_advance") else 0,
         "company_id": company_id, "created_by": user_id,
         "created_at": now.isoformat(),
     }

@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 import { odooApi } from '@/lib/api';
 import { toast } from 'sonner';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Legend } from 'recharts';
@@ -22,7 +21,7 @@ function AiChatSection({ companyId }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [autoPost, setAutoPost] = useState(false);
+  const [confirming, setConfirming] = useState(null); // holds message index awaiting confirmation
   const scrollRef = useRef(null);
 
   useEffect(() => {
@@ -36,10 +35,12 @@ function AiChatSection({ companyId }) {
     setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
     setLoading(true);
     try {
-      const res = await odooApi.ai.chat({ message: userMsg, company_id: companyId, auto_post: autoPost });
+      const res = await odooApi.ai.chat({ message: userMsg, company_id: companyId, auto_post: false });
+      const data = res.data;
+      const needsConfirm = ['journal_entry', 'invoice', 'payment'].includes(data.action_type);
       setMessages(prev => [...prev, {
-        role: 'ai', data: res.data,
-        text: res.data.response_text || 'Processed your request.',
+        role: 'ai', data, text: data.response_text || 'Processed your request.',
+        needsConfirm, confirmed: false,
       }]);
     } catch (err) {
       setMessages(prev => [...prev, { role: 'ai', text: 'Sorry, I encountered an error. Please try again.', error: true }]);
@@ -47,22 +48,37 @@ function AiChatSection({ companyId }) {
     setLoading(false);
   };
 
+  const handleConfirm = async (msgIdx) => {
+    const msg = messages[msgIdx];
+    if (!msg?.data) return;
+    setConfirming(msgIdx);
+    try {
+      const res = await odooApi.ai.chat({ message: `CONFIRM_EXECUTE: ${JSON.stringify(msg.data)}`, company_id: companyId, auto_post: true });
+      setMessages(prev => prev.map((m, i) => i === msgIdx ? { ...m, data: { ...m.data, executed: true, ...res.data }, confirmed: true, needsConfirm: false } : m));
+      toast.success('Entry posted successfully!');
+    } catch (err) {
+      toast.error('Failed to execute: ' + (err.response?.data?.detail || 'Unknown error'));
+    }
+    setConfirming(null);
+  };
+
+  const handleReject = (msgIdx) => {
+    setMessages(prev => prev.map((m, i) => i === msgIdx ? { ...m, needsConfirm: false, rejected: true } : m));
+    toast.info('Entry discarded');
+  };
+
   const quickActions = [
     "Record rent payment of ₹25,000 from bank",
     "Create invoice for ABC Corp: 10 hours consulting at ₹5,000/hr",
-    "Paid electricity bill ₹8,500 in cash",
+    "Paid electricity bill ₹8,500 in cash with 18% GST",
     "Received ₹1,50,000 from customer XYZ via bank transfer",
     "What's my total revenue this month?",
   ];
 
   return (
     <div className="space-y-3" data-testid="ai-chat-section">
-      <div className="flex items-center gap-3 mb-2">
-        <div className="flex items-center gap-2">
-          <Switch id="auto-post" checked={autoPost} onCheckedChange={setAutoPost} data-testid="ai-auto-post" />
-          <Label htmlFor="auto-post" className="text-xs">Auto-execute entries</Label>
-        </div>
-        {autoPost && <Badge className="bg-warning/20 text-warning border-0 text-[10px]">AI will create entries automatically</Badge>}
+      <div className="flex items-center gap-2 mb-1">
+        <Badge variant="outline" className="text-[10px] text-info border-info/30"><Shield size={10} className="mr-1" />AI will always ask for confirmation before posting</Badge>
       </div>
 
       <div ref={scrollRef} className="h-[380px] overflow-y-auto space-y-3 pr-1 scrollbar-thin">
@@ -90,13 +106,17 @@ function AiChatSection({ companyId }) {
               <p className="whitespace-pre-wrap">{msg.text}</p>
               {msg.data?.executed && (
                 <Badge className="mt-1.5 bg-success/20 text-success border-0 text-[10px]">
-                  <CheckCircle2 size={10} className="mr-1" />Entry created
+                  <CheckCircle2 size={10} className="mr-1" />Entry created & posted
                 </Badge>
               )}
-              {msg.data?.action_type === 'journal_entry' && msg.data?.journal_entry && !msg.data?.executed && (
-                <details className="mt-2 text-xs">
-                  <summary className="cursor-pointer text-muted-foreground">View proposed entry</summary>
-                  <div className="mt-1 space-y-0.5 font-mono">
+              {msg.rejected && (
+                <Badge className="mt-1.5 bg-muted text-muted-foreground border-0 text-[10px]">Discarded</Badge>
+              )}
+              {/* Show proposed entry details */}
+              {msg.data?.action_type === 'journal_entry' && msg.data?.journal_entry && (
+                <div className="mt-2 text-xs border rounded p-2 bg-background/50">
+                  <p className="font-semibold mb-1">Proposed Journal Entry:</p>
+                  <div className="space-y-0.5 font-mono">
                     {msg.data.journal_entry.lines?.map((l, li) => (
                       <div key={li} className="flex justify-between gap-2">
                         <span className="truncate">{l.account_name}</span>
@@ -104,7 +124,34 @@ function AiChatSection({ companyId }) {
                       </div>
                     ))}
                   </div>
-                </details>
+                </div>
+              )}
+              {msg.data?.action_type === 'invoice' && msg.data?.invoice && (
+                <div className="mt-2 text-xs border rounded p-2 bg-background/50">
+                  <p className="font-semibold mb-1">Proposed Invoice:</p>
+                  <p>Partner: {msg.data.invoice.partner_name}</p>
+                  {msg.data.invoice.invoice_lines?.map((l, li) => (
+                    <div key={li} className="flex justify-between">{l.product_name} x{l.quantity} @ {fmt(l.unit_price)}<span className="font-semibold">{fmt(l.quantity * l.unit_price)}</span></div>
+                  ))}
+                </div>
+              )}
+              {msg.data?.action_type === 'payment' && msg.data?.payment && (
+                <div className="mt-2 text-xs border rounded p-2 bg-background/50">
+                  <p className="font-semibold mb-1">Proposed Payment:</p>
+                  <p>{msg.data.payment.payment_type === 'inbound' ? 'Receive' : 'Send'} {fmt(msg.data.payment.amount)}</p>
+                </div>
+              )}
+              {/* Confirmation buttons */}
+              {msg.needsConfirm && !msg.confirmed && !msg.rejected && (
+                <div className="mt-2 flex gap-2">
+                  <Button size="sm" className="h-7 bg-success hover:bg-success/90 text-white" onClick={() => handleConfirm(i)}
+                    disabled={confirming === i} data-testid={`ai-confirm-${i}`}>
+                    {confirming === i ? <Loader2 size={12} className="animate-spin mr-1" /> : <CheckCircle2 size={12} className="mr-1" />}Confirm & Post
+                  </Button>
+                  <Button size="sm" variant="outline" className="h-7 text-error" onClick={() => handleReject(i)} data-testid={`ai-reject-${i}`}>
+                    <X size={12} className="mr-1" />Discard
+                  </Button>
+                </div>
               )}
               {msg.data?.suggestions?.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1">

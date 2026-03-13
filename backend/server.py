@@ -25,6 +25,7 @@ from routes.director import router as director_router
 from routes.uploads import router as uploads_router
 from routes.odoo_accounting import router as odoo_accounting_router
 from routes.ai_accounting import router as ai_accounting_router
+from routes.odoo_inventory import router as odoo_inventory_router
 
 # Create the main app
 app = FastAPI(title="SP Industrial Operating System")
@@ -40,6 +41,7 @@ api_router.include_router(director_router)
 api_router.include_router(uploads_router)
 api_router.include_router(odoo_accounting_router)
 api_router.include_router(ai_accounting_router)
+api_router.include_router(odoo_inventory_router)
 
 app.include_router(api_router)
 
