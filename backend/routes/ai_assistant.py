@@ -115,6 +115,31 @@ def _ensure_batch(data):
     return [data]
 
 
+async def _check_duplicates_for_entry(cid, entry):
+    """Check if an entry might be a duplicate of an existing one."""
+    warnings = []
+    inv_data = entry.get("extracted_data", {})
+    doc_num = inv_data.get("document_number") or entry.get("ref") or ""
+    if doc_num:
+        existing = await db.odoo_moves.find_one(
+            {"company_id": cid, "ref": {"$regex": re.escape(doc_num), "$options": "i"}},
+            {"_id": 0, "name": 1, "ref": 1, "amount_total": 1, "date": 1}
+        )
+        if existing:
+            warnings.append(f"Possible duplicate: Invoice '{doc_num}' matches existing entry {existing.get('name', '')} (Amount: {existing.get('amount_total', 0)})")
+    partner = entry.get("partner_name") or inv_data.get("vendor_name") or ""
+    total = entry.get("total_amount") or inv_data.get("grand_total") or 0
+    if partner and total and float(total) > 0:
+        query = {"company_id": cid}
+        query["partner_name"] = {"$regex": re.escape(partner[:20]), "$options": "i"}
+        query["amount_total"] = {"$gte": float(total) * 0.95, "$lte": float(total) * 1.05}
+        existing = await db.odoo_moves.find_one(query, {"_id": 0, "name": 1, "amount_total": 1, "date": 1})
+        if existing:
+            warnings.append(f"Similar entry: {partner} ~{total} matches {existing.get('name', '')} ({existing.get('date', '')})")
+    return warnings
+
+
+
 def _extract_file_text(content: bytes, filename: str) -> str:
     """Extract text from PDF, Excel, CSV files with structure preservation."""
     ext = os.path.splitext(filename)[1].lower()
@@ -522,15 +547,21 @@ Process EVERY data row — do not skip or summarize multiple rows into one."""
                 "created_at": now_iso,
                 "source": "file_upload",
             })
+            # Check for duplicates
+            dup_warnings = await _check_duplicates_for_entry(cid, entry)
+            msg = entry.get("description", f"Analyzed {fname} — review the entries below.")
+            if dup_warnings:
+                msg += "\n\nDuplicate Warning:\n" + "\n".join(dup_warnings)
             return {
                 "type": "preview",
                 "pending_id": pending_id,
-                "message": entry.get("description", f"Analyzed {fname} — review the entries below."),
+                "message": msg,
                 "document_type": entry.get("document_type", "unknown"),
                 "confidence": entry.get("confidence", 0),
                 "entries": entry,
                 "file_url": file_url,
                 "file_name": fname,
+                "duplicate_warnings": dup_warnings,
             }
         else:
             # Multiple entries — batch mode
@@ -868,3 +899,93 @@ async def get_audit_stats(company_id: Optional[str] = None, current_user: dict =
         "total_pending": total_pending,
         "total_actions": total_approved + total_rejected,
     }
+
+
+# ============ 9. VOICE TRANSCRIPTION ============
+
+@router.post("/voice")
+async def voice_transcribe(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user),
+):
+    """Transcribe audio to text using OpenAI Whisper."""
+    from emergentintegrations.llm.openai import OpenAISpeechToText
+    api_key = os.environ.get(EMERGENT_KEY_ENV)
+    if not api_key:
+        raise HTTPException(status_code=500, detail="AI key not configured")
+
+    content = await file.read()
+    if len(content) > 25 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Audio file too large (max 25MB)")
+
+    stt = OpenAISpeechToText(api_key=api_key)
+    try:
+        audio_io = io.BytesIO(content)
+        audio_io.name = file.filename or "audio.webm"
+        response = await stt.transcribe(
+            file=audio_io,
+            model="whisper-1",
+            response_format="json",
+            language="en",
+            prompt="Business accounting inventory ERP finance journal entry invoice payment GST",
+        )
+        return {"text": response.text}
+    except Exception as e:
+        logger.error(f"Voice transcription error: {e}")
+        raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}")
+
+
+# ============ 10. DUPLICATE INVOICE DETECTION ============
+
+@router.post("/check-duplicates")
+async def check_duplicates(
+    invoice_number: Optional[str] = None,
+    vendor_name: Optional[str] = None,
+    amount: Optional[float] = None,
+    date: Optional[str] = None,
+    company_id: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """Check for duplicate invoices in existing entries."""
+    cid = await _cid(current_user, company_id)
+    duplicates = []
+
+    # Check by invoice number (exact match)
+    if invoice_number:
+        existing = await db.odoo_moves.find(
+            {"company_id": cid, "ref": invoice_number, "move_type": {"$in": ["in_invoice", "out_invoice"]}},
+            {"_id": 0, "id": 1, "name": 1, "ref": 1, "amount_total": 1, "date": 1, "partner_name": 1},
+        ).to_list(10)
+        for e in existing:
+            duplicates.append({**e, "match_type": "exact_invoice_number", "confidence": 1.0})
+
+    # Check by vendor + amount + date range (fuzzy match)
+    if vendor_name and amount:
+        query = {"company_id": cid, "move_type": {"$in": ["in_invoice", "out_invoice"]}}
+        # Fuzzy vendor name match
+        query["partner_name"] = {"$regex": re.escape(vendor_name[:20]), "$options": "i"}
+        # Amount within 5% tolerance
+        query["amount_total"] = {"$gte": amount * 0.95, "$lte": amount * 1.05}
+        existing = await db.odoo_moves.find(query, {"_id": 0, "id": 1, "name": 1, "ref": 1, "amount_total": 1, "date": 1, "partner_name": 1}).to_list(10)
+        for e in existing:
+            if not any(d["id"] == e["id"] for d in duplicates):
+                duplicates.append({**e, "match_type": "vendor_amount_match", "confidence": 0.8})
+
+    return {"duplicates": duplicates, "has_duplicates": len(duplicates) > 0}
+
+
+# ============ 11. DATA EXPORT ============
+
+@router.get("/export/audit-trail")
+async def export_audit_trail(
+    format: str = "json",
+    company_id: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """Export audit trail data."""
+    cid = await _cid(current_user, company_id)
+    query = {} if not cid else {"company_id": cid}
+    trail = await db.ai_audit_trail.find(
+        query, {"_id": 0}
+    ).sort("timestamp", -1).to_list(5000)
+    return trail

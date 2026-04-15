@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import {
   Send, Upload, Bot, User, FileText, Loader2, CheckCircle, XCircle,
   Edit3, ArrowRight, AlertTriangle, FileSpreadsheet, Image, File as FileIcon,
-  History, ChevronDown, ChevronUp, Brain,
+  History, ChevronDown, ChevronUp, Brain, Mic, MicOff,
 } from 'lucide-react';
 
 const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n || 0);
@@ -472,8 +472,76 @@ export default function AiBusinessAssistant({ companyId }) {
   const [history, setHistory] = useState([]);
   const fileInputRef = useRef(null);
   const chatEndRef = useRef(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const mediaRecorderRef = useRef(null);
+  const recordingTimerRef = useRef(null);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+
+  // Voice recording
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      const chunks = [];
+      mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        clearInterval(recordingTimerRef.current);
+        setRecordingTime(0);
+        const blob = new Blob(chunks, { type: 'audio/webm' });
+        if (blob.size < 1000) { toast.error('Recording too short'); return; }
+        setLoading(true);
+        addMessage('user', 'Voice message (transcribing...)', { voice: true });
+        try {
+          const res = await aiAssistantApi.voice(blob);
+          const text = res.data?.text;
+          if (text) {
+            // Replace the transcribing message with actual text
+            setMessages(prev => {
+              const idx = prev.findLastIndex(m => m.voice);
+              if (idx >= 0) {
+                const updated = [...prev];
+                updated[idx] = { ...updated[idx], text: text };
+                return updated;
+              }
+              return prev;
+            });
+            // Send to chat
+            const chatRes = await aiAssistantApi.chat(text, companyId);
+            const data = chatRes.data;
+            if (data.type === 'preview') {
+              addMessage('assistant', data.message);
+              setActivePreview({ entries: data.entries, pendingId: data.pending_id });
+            } else if (data.type === 'batch_preview') {
+              addMessage('assistant', data.message);
+              setActiveBatch(data.batch);
+            } else {
+              addMessage('assistant', data.message);
+            }
+          } else {
+            addMessage('assistant', 'Could not transcribe audio. Please try again.');
+          }
+        } catch (err) {
+          addMessage('assistant', `Voice error: ${err.response?.data?.detail || 'Transcription failed'}`);
+        } finally { setLoading(false); }
+      };
+      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorder.start();
+      setIsRecording(true);
+      recordingTimerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000);
+    } catch {
+      toast.error('Microphone access denied. Please allow microphone permission.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    setIsRecording(false);
+  };
 
   const addMessage = (role, text, extra = {}) => {
     const msg = { id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, role, text, ...extra };
@@ -606,18 +674,33 @@ export default function AiBusinessAssistant({ companyId }) {
         <div className="flex gap-2 items-end">
           <input ref={fileInputRef} type="file" className="hidden" accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.webp"
             onChange={handleFileUpload} data-testid="ai-file-input" />
-          <Button variant="outline" size="icon" onClick={() => fileInputRef.current?.click()} disabled={loading}
+          <Button variant="outline" size="icon" onClick={() => fileInputRef.current?.click()} disabled={loading || isRecording}
             title="Upload file" data-testid="ai-upload-btn">
             <Upload size={18} />
           </Button>
+          <Button
+            variant={isRecording ? "destructive" : "outline"} size="icon"
+            onClick={isRecording ? stopRecording : startRecording}
+            disabled={loading}
+            title={isRecording ? "Stop recording" : "Voice input"}
+            data-testid="ai-voice-btn"
+          >
+            {isRecording ? <MicOff size={18} /> : <Mic size={18} />}
+          </Button>
+          {isRecording && (
+            <div className="flex items-center gap-2 text-sm text-red-500 animate-pulse">
+              <div className="w-2 h-2 rounded-full bg-red-500" />
+              {recordingTime}s
+            </div>
+          )}
           <div className="flex-1 relative">
             <Input
               value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown}
-              placeholder="Type a message or upload a file..."
-              disabled={loading} className="pr-12" data-testid="ai-chat-input"
+              placeholder={isRecording ? "Recording... click mic to stop" : "Type a message or upload a file..."}
+              disabled={loading || isRecording} className="pr-12" data-testid="ai-chat-input"
             />
             <Button size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
-              onClick={handleSend} disabled={loading || !input.trim()} data-testid="ai-send-btn">
+              onClick={handleSend} disabled={loading || !input.trim() || isRecording} data-testid="ai-send-btn">
               <Send size={14} />
             </Button>
           </div>
@@ -627,6 +710,7 @@ export default function AiBusinessAssistant({ companyId }) {
           <Badge variant="outline" className="text-[10px]">Excel</Badge>
           <Badge variant="outline" className="text-[10px]">CSV</Badge>
           <Badge variant="outline" className="text-[10px]">Images</Badge>
+          <Badge variant="outline" className="text-[10px]">Voice</Badge>
           <span className="ml-auto">Preview → Edit → Approve → Post</span>
         </div>
       </div>

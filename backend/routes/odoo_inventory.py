@@ -363,3 +363,35 @@ async def list_quants(company_id: Optional[str] = None, product_id: Optional[str
         q["product_name"] = products.get(q.get("product_id"), {}).get("name", "")
         q["location_name"] = locations.get(q.get("location_id"), {}).get("name", "")
     return quants
+
+
+# ============ DATA EXPORT ============
+
+@router.get("/export/products")
+async def export_products(company_id: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+    """Export all products with stock levels."""
+    cid = company_id or await resolve_company_id(current_user['user_id'], current_user['role'], company_id)
+    query = {} if not cid else {"company_id": cid}
+    products = await db.inv_products.find(
+        query,
+        {"_id": 0, "id": 1, "name": 1, "sku": 1, "barcode": 1, "product_type": 1,
+         "category_name": 1, "cost_price": 1, "sale_price": 1, "qty_on_hand": 1,
+         "qty_reserved": 1, "qty_available": 1, "uom_name": 1, "hsn_code": 1,
+         "gst_rate": 1, "valuation_method": 1, "min_stock": 1, "reorder_point": 1}
+    ).to_list(10000)
+    return products
+
+
+@router.get("/export/stock-moves")
+async def export_stock_moves(company_id: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+    """Export stock moves."""
+    cid = company_id or await resolve_company_id(current_user['user_id'], current_user['role'], company_id)
+    query = {} if not cid else {"company_id": cid}
+    moves = await db.inv_stock_moves.find(
+        query,
+        {"_id": 0, "id": 1, "reference": 1, "product_name": 1, "product_sku": 1,
+         "quantity": 1, "uom": 1, "source_location_name": 1, "destination_location_name": 1,
+         "state": 1, "move_type": 1, "created_at": 1}
+    ).sort("created_at", -1).to_list(10000)
+    return moves
+

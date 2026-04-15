@@ -6,9 +6,10 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { inventoryApi } from '@/lib/api';
+import { inventoryApi, exportApi } from '@/lib/api';
 import { toast } from 'sonner';
 import { Plus, Search, Package, Loader2 } from 'lucide-react';
+import ExportButton from '@/components/ExportButton';
 
 const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n || 0);
 
@@ -59,7 +60,25 @@ export function ProductsTab({ companyId }) {
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input placeholder="Search products, SKU, barcode..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" data-testid="product-search" />
         </div>
-        <Dialog open={dlg} onOpenChange={setDlg}>
+        <div className="flex gap-2">
+          <ExportButton
+            fetchData={async () => { const res = await exportApi.products(companyId); return res.data; }}
+            filenameBase="products"
+            title="Products & Inventory"
+            columns={[
+              { header: 'Name', accessor: r => r.name },
+              { header: 'SKU', accessor: r => r.sku || '' },
+              { header: 'Type', accessor: r => r.product_type || '' },
+              { header: 'Category', accessor: r => r.category_name || '' },
+              { header: 'Cost Price', accessor: r => r.cost_price || 0 },
+              { header: 'Sale Price', accessor: r => r.sale_price || 0 },
+              { header: 'On Hand', accessor: r => r.quantity_on_hand || 0 },
+              { header: 'Available', accessor: r => r.quantity_available || 0 },
+              { header: 'HSN', accessor: r => r.hsn_code || '' },
+              { header: 'GST %', accessor: r => r.gst_rate || '' },
+            ]}
+          />
+          <Dialog open={dlg} onOpenChange={setDlg}>
           <DialogTrigger asChild><Button className="bg-accent hover:bg-accent/90" data-testid="new-product-btn"><Plus size={16} className="mr-1" />New Product</Button></DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Create Product</DialogTitle><DialogDescription>Add a new product to inventory</DialogDescription></DialogHeader>
@@ -95,6 +114,7 @@ export function ProductsTab({ companyId }) {
             </div>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
       {loading ? <div className="flex justify-center py-12"><Loader2 className="animate-spin h-10 w-10 text-primary" /></div> : products.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">No products yet. Create one to get started.</div>

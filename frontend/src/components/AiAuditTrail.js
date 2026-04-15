@@ -3,12 +3,13 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { aiAssistantApi } from '@/lib/api';
+import { aiAssistantApi, exportApi } from '@/lib/api';
 import { toast } from 'sonner';
 import {
   ShieldCheck, ShieldX, Clock, FileText, RefreshCw, Filter,
   ArrowUpDown, ChevronLeft, ChevronRight,
 } from 'lucide-react';
+import ExportButton from '@/components/ExportButton';
 
 const PAGE_SIZE = 15;
 
@@ -66,9 +67,24 @@ export default function AiAuditTrail({ companyId }) {
           </Select>
           <span className="text-xs text-muted-foreground">{filtered.length} records</span>
         </div>
-        <Button variant="ghost" size="sm" onClick={loadData} disabled={loading} data-testid="audit-refresh">
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="ghost" size="sm" onClick={loadData} disabled={loading} data-testid="audit-refresh">
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          </Button>
+          <ExportButton
+            fetchData={async () => { const res = await exportApi.auditTrail(companyId); return res.data; }}
+            filenameBase="audit-trail"
+            title="AI Audit Trail"
+            columns={[
+              { header: 'Action', accessor: r => r.action },
+              { header: 'Type', accessor: r => r.action_type || '' },
+              { header: 'Reviewed By', accessor: r => r.reviewed_by || '' },
+              { header: 'Role', accessor: r => r.user_role || '' },
+              { header: 'Source', accessor: r => r.source || '' },
+              { header: 'Timestamp', accessor: r => r.timestamp || '' },
+            ]}
+          />
+        </div>
       </div>
 
       {/* Trail List */}

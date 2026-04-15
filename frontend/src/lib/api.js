@@ -284,5 +284,21 @@ export const aiAssistantApi = {
   learn: (data) => api.post('/ai-assistant/learn', data),
   mappings: (companyId) => api.get('/ai-assistant/mappings', { params: { company_id: companyId } }),
   deleteMapping: (mappingId) => api.delete(`/ai-assistant/mappings/${mappingId}`),
+  voice: (audioBlob) => {
+    const fd = new FormData();
+    fd.append('file', audioBlob, 'voice.webm');
+    return api.post('/ai-assistant/voice', fd, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 30000 });
+  },
+  checkDuplicates: (params) => api.post('/ai-assistant/check-duplicates', null, { params }),
+};
+
+// ======== DATA EXPORT API ========
+export const exportApi = {
+  journalEntries: (companyId) => api.get('/acc/export/journal-entries', { params: { company_id: companyId } }),
+  chartOfAccounts: (companyId) => api.get('/acc/export/chart-of-accounts', { params: { company_id: companyId } }),
+  invoices: (companyId) => api.get('/acc/export/invoices', { params: { company_id: companyId } }),
+  products: (companyId) => api.get('/inv/export/products', { params: { company_id: companyId } }),
+  stockMoves: (companyId) => api.get('/inv/export/stock-moves', { params: { company_id: companyId } }),
+  auditTrail: (companyId) => api.get('/ai-assistant/export/audit-trail', { params: { company_id: companyId } }),
 };
 

@@ -8,9 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { odooApi } from '@/lib/api';
+import { exportApi } from '@/lib/api';
 import { toast } from 'sonner';
 import { Plus, XCircle, BookOpen } from 'lucide-react';
 import { fmtd, LoadingSpinner, cleanParams } from './helpers';
+import ExportButton from '@/components/ExportButton';
 
 export function JournalEntriesTab({ companyId }) {
   const [entries, setEntries] = useState([]);
@@ -58,7 +60,22 @@ export function JournalEntriesTab({ companyId }) {
     <div className="space-y-4" data-testid="acc-entries">
       <div className="flex justify-between items-center">
         <h2 className="text-lg font-heading font-semibold">Journal Entries</h2>
-        <Dialog open={dlgOpen} onOpenChange={setDlgOpen}>
+        <div className="flex gap-2">
+          <ExportButton
+            fetchData={async () => { const res = await exportApi.journalEntries(companyId); return res.data; }}
+            filenameBase="journal-entries"
+            title="Journal Entries"
+            columns={[
+              { header: 'Number', accessor: r => r.name },
+              { header: 'Date', accessor: r => r.date },
+              { header: 'Journal', accessor: r => r.journal_name },
+              { header: 'Narration', accessor: r => r.narration || r.ref || '' },
+              { header: 'Debit', accessor: r => r.total_debit || r.amount_total || 0 },
+              { header: 'Credit', accessor: r => r.total_credit || r.amount_total || 0 },
+              { header: 'Status', accessor: r => r.state },
+            ]}
+          />
+          <Dialog open={dlgOpen} onOpenChange={setDlgOpen}>
           <DialogTrigger asChild><Button className="bg-accent hover:bg-accent/90" data-testid="new-entry-btn"><Plus size={16} className="mr-1" />New Entry</Button></DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Create Journal Entry</DialogTitle><DialogDescription>Create a balanced double-entry journal entry.</DialogDescription></DialogHeader>
@@ -96,6 +113,7 @@ export function JournalEntriesTab({ companyId }) {
             </div>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
       {loading ? <LoadingSpinner /> : entries.length === 0 ? (
         <Card><CardContent className="p-12 text-center text-muted-foreground">No journal entries yet</CardContent></Card>

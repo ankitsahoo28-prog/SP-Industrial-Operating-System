@@ -1080,3 +1080,53 @@ async def gstr3b_report(company_id: Optional[str] = None, month: Optional[str] =
         },
         "net_payable": net_payable,
     }
+
+
+# ============ DATA EXPORT ENDPOINTS ============
+
+@router.get("/export/journal-entries")
+async def export_journal_entries(company_id: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+    """Export all journal entries for a company."""
+    cid = await resolve_company_id(current_user['user_id'], current_user['role'], company_id)
+    query = {"move_type": "entry"} if not cid else {"company_id": cid, "move_type": "entry"}
+    moves = await db.odoo_moves.find(
+        query,
+        {"_id": 0, "id": 1, "name": 1, "date": 1, "journal_name": 1, "narration": 1,
+         "ref": 1, "state": 1, "amount_total": 1, "total_debit": 1, "total_credit": 1,
+         "created_at": 1}
+    ).sort("date", -1).to_list(10000)
+    return moves
+
+
+@router.get("/export/chart-of-accounts")
+async def export_chart_of_accounts(company_id: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+    """Export chart of accounts."""
+    cid = await resolve_company_id(current_user['user_id'], current_user['role'], company_id)
+    query = {} if not cid else {"company_id": cid}
+    accounts = await db.odoo_accounts.find(
+        query,
+        {"_id": 0, "id": 1, "code": 1, "name": 1, "account_type": 1, "reconcile": 1}
+    ).sort("code", 1).to_list(1000)
+    # Compute balances
+    for acc in accounts:
+        debit = await db.odoo_move_lines.find({"account_id": acc["id"]}).to_list(None)
+        total_debit = sum(d.get("debit", 0) for d in debit)
+        total_credit = sum(d.get("credit", 0) for d in debit)
+        acc["balance"] = round(total_debit - total_credit, 2)
+    return accounts
+
+
+@router.get("/export/invoices")
+async def export_invoices(company_id: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+    """Export all invoices."""
+    cid = await resolve_company_id(current_user['user_id'], current_user['role'], company_id)
+    q = {"move_type": {"$in": ["in_invoice", "out_invoice", "in_refund", "out_refund"]}}
+    if cid:
+        q["company_id"] = cid
+    invoices = await db.odoo_moves.find(
+        q,
+        {"_id": 0, "id": 1, "name": 1, "date": 1, "move_type": 1, "partner_name": 1,
+         "state": 1, "amount_total": 1, "amount_untaxed": 1, "amount_tax": 1,
+         "payment_state": 1, "ref": 1}
+    ).sort("date", -1).to_list(10000)
+    return invoices
