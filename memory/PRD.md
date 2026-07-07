@@ -1,79 +1,54 @@
 # Multi-Business ERP Application — PRD
 
 ## Original Problem Statement
-Build a comprehensive multi-business ERP application with: Odoo-style accounting & inventory, GST (IGST/SGST/CGST), advance payments, AI assistant with confirmation, custom role-based access control (director controls what manager/staff can see), always-on location tracking, WhatsApp notifications, GSTR compliance reports, and AI Business Assistant with voice, document processing, batch entries, data export, and duplicate detection.
+Build a comprehensive multi-business ERP application with: Odoo-style accounting & inventory, GST, advance payments, AI assistant, RBAC, location tracking, WhatsApp notifications, GSTR reports, voice commands, data export, and a modern professional interface.
 
 ## Architecture
 - **Frontend**: React + Tailwind CSS + Shadcn/UI + Recharts + jsPDF + XLSX
 - **Backend**: FastAPI + MongoDB (motor) + Modular Routes
-- **Auth**: JWT tokens + RBAC with custom role permissions (19 permissions)
+- **Auth**: JWT tokens + RBAC with 19 custom permissions
 - **AI**: OpenAI GPT-4o (vision + text + whisper) via Emergent LLM Key
-- **WhatsApp**: Twilio (when configured) for notifications, forgot password OTP
-- **PWA**: Service worker with offline queue + background sync
+- **Design**: Outfit + IBM Plex Sans fonts, Indigo-600 primary, dark sidebar
 
 ## What's Been Implemented (Latest)
 
+### UI/UX Overhaul — Jul 2026
+- New design system: Outfit (headings) + IBM Plex Sans (body) + JetBrains Mono (code)
+- Dark sidebar with grouped navigation (Overview, Operations, Finance, System)
+- Glassmorphism topbar with company selector, theme toggle, notifications
+- Modern stat cards with hover animations (translate-y + shadow)
+- Stagger entrance animations on page load
+- Consistent heading hierarchy (text-2xl max, tracking-tight)
+- Clean login page with indigo accent
+- Mobile responsive with hamburger menu
+
 ### Data Export (Excel + PDF) — Apr 2026
-- Reusable ExportButton component with dropdown (Excel/PDF)
-- Export buttons on: Journal Entries, Products/Inventory, Audit Trail
-- Backend export endpoints: journal-entries, chart-of-accounts, invoices, products, stock-moves, audit-trail
-- Client-side PDF generation (jsPDF + autotable) and Excel generation (XLSX)
+- Export buttons on Journal Entries, Products, Audit Trail
+- Backend export endpoints for all data types
 
 ### Voice Commands (OpenAI Whisper) — Apr 2026
-- Mic button in AI chat for voice recording
-- Real-time recording indicator (red pulsing dot + timer)
-- Audio transcribed via Whisper → sent to AI as text → processed normally
-- Supports batch entries from voice commands
+- Mic button in AI chat, real-time recording indicator
 
 ### Duplicate Invoice Detection — Apr 2026
-- Auto-check when processing uploaded documents
-- Checks: exact invoice number match + fuzzy vendor+amount match (5% tolerance)
-- Warning shown in preview message if potential duplicate found
-- Standalone check-duplicates API endpoint
+- Auto-check during document processing
 
-### Excel Processing Fix + Batch Entries — Mar 2026
-- Upgraded to GPT-4o for better file understanding
-- Improved Excel extraction: row numbers, key-value format, sheet names
-- Batch mode: AI returns multiple entries from single message/file
-- BatchPreviewPanel: per-entry approve/reject + Approve All/Reject All
-- Backend batch-approve/batch-reject endpoints
-- Handles 50+ sheet files with smart truncation
+### Excel Processing + Batch Entries — Mar 2026
+- GPT-4o, improved extraction, batch mode, Approve All/Reject All
 
-### AI Audit Trail — Mar 2026
-- Full audit trail with stats dashboard (approved/rejected/pending)
-- Filterable + paginated audit log UI
-
-### AI Smart Learning — Mar 2026
-- Correction mappings: AI learns from user edits
-- Auto-detection of changes during approve flow
+### AI Audit Trail + Smart Learning — Mar 2026
+- Full audit trail, correction mappings, auto-detection
 
 ### Previously Completed
 - GST in Accounting, Advance Payments, GSTR-1 & GSTR-3B reports
 - Custom RBAC (19 permissions), Location tracking, Role Templates
-- Odoo-Style Inventory & Accounting
+- Odoo-Style Inventory & Accounting (8 tabs each)
 - WhatsApp Integration (scaffolded, awaiting Twilio keys)
-- PWA Offline Sync
-- AI Business Assistant with Preview → Edit → Approve → Post
-
-## Key API Endpoints
-- `/api/ai-assistant/chat` — Main AI chat (single + batch entries)
-- `/api/ai-assistant/upload` — File upload processing
-- `/api/ai-assistant/voice` — Voice transcription (Whisper)
-- `/api/ai-assistant/approve` / `reject` — Single entry actions
-- `/api/ai-assistant/batch-approve` / `batch-reject` — Batch actions
-- `/api/ai-assistant/check-duplicates` — Duplicate detection
-- `/api/ai-assistant/audit-trail` / `audit-stats` — Audit data
-- `/api/ai-assistant/learn` / `mappings` — Smart learning
-- `/api/acc/export/*` — Accounting data export
-- `/api/inv/export/*` — Inventory data export
+- PWA Offline Sync, AI Business Assistant
 
 ## Backlog
 - P1: WhatsApp activation (awaiting Twilio credentials)
-- P2: Advanced OCR for low-quality scans
-- P2: Automated GST classification from HSN codes
-- P3: Fraud detection alerts
-- P3: Remove legacy inventory code
-- P3: Native mobile app
+- P2: Advanced OCR, auto GST classification, fraud detection
+- P3: Remove legacy inventory code, native mobile app
 
 ## Test Credentials
 - Director: director@sp.com / password123
