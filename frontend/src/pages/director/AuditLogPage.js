@@ -99,7 +99,7 @@ export default function AuditLogPage() {
     <div className="space-y-6" data-testid="audit-log-page">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-heading font-bold text-primary">Audit Trail</h1>
+          <h1 className="text-2xl font-heading font-bold tracking-tight">Audit Trail</h1>
           <p className="text-muted-foreground mt-1">Complete edit history and change log</p>
         </div>
         <Select value={entityFilter} onValueChange={setEntityFilter}>

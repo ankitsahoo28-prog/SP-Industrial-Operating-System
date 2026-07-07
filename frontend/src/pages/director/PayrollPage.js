@@ -5,7 +5,7 @@ export default function PayrollPage() {
   return (
     <div className="space-y-6" data-testid="payroll-page">
       <div>
-        <h1 className="text-3xl font-heading font-bold text-primary">Payroll Management</h1>
+        <h1 className="text-2xl font-heading font-bold tracking-tight">Payroll Management</h1>
         <p className="text-muted-foreground mt-1">Manage employee salaries and attendance</p>
       </div>
 

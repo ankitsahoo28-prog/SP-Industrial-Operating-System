@@ -93,7 +93,7 @@ export default function ReconciliationPage() {
     <div className="space-y-6" data-testid="reconciliation-page">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-heading font-bold text-primary flex items-center gap-3"><ArrowLeftRight size={28} />Inter-Company Reconciliation</h1>
+          <h1 className="text-2xl font-heading font-bold tracking-tight flex items-center gap-3"><ArrowLeftRight size={18} />Inter-Company Reconciliation</h1>
           <p className="text-muted-foreground mt-1">Track and match transactions between companies</p>
         </div>
         <div className="flex gap-2">

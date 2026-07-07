@@ -69,7 +69,7 @@ export default function IndentsPage() {
     <div className="space-y-6" data-testid="indents-page">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-heading font-bold text-primary">Indents Management</h1>
+          <h1 className="text-2xl font-heading font-bold tracking-tight">Indents Management</h1>
           <p className="text-muted-foreground mt-1">Review and authorize stock requests</p>
         </div>
         <BusinessFilter value={businessFilter} onChange={setBusinessFilter} />

@@ -147,7 +147,7 @@ export default function InventoryPage() {
     <div className="space-y-6" data-testid="manager-inventory-page">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-heading font-bold text-primary">Inventory Management</h1>
+          <h1 className="text-2xl font-heading font-bold tracking-tight">Inventory Management</h1>
           <p className="text-muted-foreground mt-1">Manage stock, purchases, sales & production</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">

@@ -82,7 +82,7 @@ export default function TasksPage() {
     <div className="space-y-6" data-testid="manager-tasks-page">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-heading font-bold text-primary">Tasks</h1>
+          <h1 className="text-2xl font-heading font-bold tracking-tight">Tasks</h1>
           <p className="text-muted-foreground mt-1">Assign and track team tasks</p>
         </div>
 

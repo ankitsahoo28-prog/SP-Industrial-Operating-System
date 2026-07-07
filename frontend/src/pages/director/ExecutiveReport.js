@@ -48,7 +48,7 @@ export default function ExecutiveReport() {
     <div className="space-y-6" data-testid="executive-report-page">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-4xl font-heading font-bold text-primary flex items-center gap-3"><BarChart3 size={32} />Executive Dashboard</h1>
+          <h1 className="text-2xl font-heading font-bold tracking-tight flex items-center gap-3"><BarChart3 size={20} />Executive Dashboard</h1>
           <p className="text-muted-foreground mt-1">Consolidated financial insights across all companies</p>
         </div>
         <div className="flex gap-2">

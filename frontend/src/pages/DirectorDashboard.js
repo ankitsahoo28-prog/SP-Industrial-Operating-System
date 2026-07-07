@@ -23,16 +23,16 @@ import ReconciliationPage from './director/ReconciliationPage';
 import AiAssistantPage from './director/AiAssistantPage';
 
 const StatCard = ({ icon: Icon, title, value, description, color }) => (
-  <Card className="hover:shadow-md transition-shadow">
-    <CardContent className="p-6">
+  <Card className="group border hover:border-indigo-200 dark:hover:border-indigo-500/20 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
+    <CardContent className="p-5">
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <p className="text-sm text-muted-foreground uppercase tracking-wider mb-1">{title}</p>
-          <p className="text-3xl font-heading font-bold text-primary mb-1">{value}</p>
+          <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2">{title}</p>
+          <p className="text-2xl font-heading font-bold tracking-tight mb-0.5">{value}</p>
           {description && <p className="text-xs text-muted-foreground">{description}</p>}
         </div>
-        <div className={`p-3 rounded-xl ${color}`}>
-          <Icon size={24} className="text-white" />
+        <div className={`p-2.5 rounded-lg ${color} transition-transform duration-200 group-hover:scale-110`}>
+          <Icon size={18} className="text-white" />
         </div>
       </div>
     </CardContent>
@@ -95,16 +95,16 @@ const DashboardHome = () => {
   }
 
   return (
-    <div className="space-y-8" data-testid="director-dashboard">
+    <div className="space-y-6 animate-fade-in" data-testid="director-dashboard">
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-4xl font-heading font-bold text-primary mb-2">Director Dashboard</h1>
-          <p className="text-muted-foreground">Complete overview of all operations</p>
+          <h1 className="text-2xl font-heading font-bold tracking-tight mb-1">Dashboard</h1>
+          <p className="text-sm text-muted-foreground">Complete overview of all operations</p>
         </div>
         <Button
           onClick={fetchPredictions}
           disabled={loadingAI}
-          className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+          className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
           data-testid="generate-predictions-button"
         >
           {loadingAI ? (
@@ -123,8 +123,7 @@ const DashboardHome = () => {
 
       {/* Overall Stats */}
       <div>
-        <h2 className="text-2xl font-heading font-semibold mb-4">Overall Statistics</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 stagger-children">
           <StatCard
             icon={Users}
             title="Total Users"
@@ -172,7 +171,7 @@ const DashboardHome = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-3xl font-heading font-bold mb-2">₹{predictions.revenue?.toFixed(2) || '0.00'}</p>
+                <p className="text-2xl font-heading font-bold tracking-tight mb-2">₹{predictions.revenue?.toFixed(2) || '0.00'}</p>
                 <p className="text-sm text-muted-foreground">{predictions.revenue_trend || 'Based on historical patterns'}</p>
                 {predictions.revenue_confidence && (
                   <div className="mt-3">
@@ -199,7 +198,7 @@ const DashboardHome = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-3xl font-heading font-bold mb-2">₹{predictions.expenses?.toFixed(2) || '0.00'}</p>
+                <p className="text-2xl font-heading font-bold tracking-tight mb-2">₹{predictions.expenses?.toFixed(2) || '0.00'}</p>
                 <p className="text-sm text-muted-foreground">{predictions.expense_trend || 'Estimated operational costs'}</p>
                 {predictions.expense_breakdown && (
                   <div className="mt-3 space-y-1">
@@ -222,7 +221,7 @@ const DashboardHome = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className={`text-3xl font-heading font-bold mb-2 ${
+                <p className={`text-2xl font-heading font-bold tracking-tight mb-2 ${
                   (predictions.revenue - predictions.expenses) >= 0 ? 'text-success' : 'text-error'
                 }`}>
                   ₹{((predictions.revenue || 0) - (predictions.expenses || 0)).toFixed(2)}
@@ -288,44 +287,46 @@ const DashboardHome = () => {
       {/* Business-wise Data */}
       {stats?.business_stats && stats.business_stats.length > 0 && (
         <div>
-          <h2 className="text-2xl font-heading font-semibold mb-4">Business Performance</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <h2 className="text-base font-heading font-semibold mb-3">Business Performance</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {stats.business_stats.filter(b => b.total_users > 0 || b.total_income > 0 || b.total_expense > 0).map((business) => (
-              <Card key={business.business_type} className="hover:shadow-md transition-shadow">
-                <CardHeader>
-                  <CardTitle className="text-lg">{business.business_name}</CardTitle>
-                  <CardDescription className="capitalize">{business.business_type.replace('_', ' ')}</CardDescription>
+              <Card key={business.business_type} className="group hover:border-indigo-200 dark:hover:border-indigo-500/20 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-heading">{business.business_name}</CardTitle>
+                  <CardDescription className="capitalize text-xs">{business.business_type.replace('_', ' ')}</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Users</span>
-                    <span className="font-semibold">{business.total_users}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Tasks</span>
-                    <span className="font-semibold">{business.total_tasks} ({business.pending_tasks} pending)</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Reports</span>
-                    <span className="font-semibold">{business.total_reports}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Indents</span>
-                    <span className="font-semibold">{business.pending_indents} pending</span>
-                  </div>
-                  <div className="pt-3 border-t">
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-sm text-muted-foreground">Income</span>
-                      <span className="font-semibold text-success">₹{business.total_income.toFixed(2)}</span>
+                <CardContent className="space-y-2 text-sm">
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                    <div className="flex justify-between">
+                      <span className="text-xs text-muted-foreground">Users</span>
+                      <span className="text-xs font-semibold">{business.total_users}</span>
                     </div>
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-sm text-muted-foreground">Expense</span>
-                      <span className="font-semibold text-error">₹{business.total_expense.toFixed(2)}</span>
+                    <div className="flex justify-between">
+                      <span className="text-xs text-muted-foreground">Tasks</span>
+                      <span className="text-xs font-semibold">{business.total_tasks} ({business.pending_tasks} pending)</span>
                     </div>
-                    <div className="flex justify-between items-center mt-2 pt-2 border-t">
-                      <span className="text-sm font-semibold">Net Profit</span>
-                      <span className={`font-bold ${business.net_profit >= 0 ? 'text-success' : 'text-error'}`}>
-                        ₹{business.net_profit.toFixed(2)}
+                    <div className="flex justify-between">
+                      <span className="text-xs text-muted-foreground">Reports</span>
+                      <span className="text-xs font-semibold">{business.total_reports}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-xs text-muted-foreground">Indents</span>
+                      <span className="text-xs font-semibold">{business.pending_indents} pending</span>
+                    </div>
+                  </div>
+                  <div className="pt-2 border-t space-y-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-muted-foreground">Income</span>
+                      <span className="text-xs font-semibold text-emerald-600">₹{business.total_income.toLocaleString('en-IN', {minimumFractionDigits: 2})}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-muted-foreground">Expense</span>
+                      <span className="text-xs font-semibold text-red-500">₹{business.total_expense.toLocaleString('en-IN', {minimumFractionDigits: 2})}</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-1.5 border-t">
+                      <span className="text-xs font-semibold">Net Profit</span>
+                      <span className={`text-sm font-bold ${business.net_profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                        ₹{business.net_profit.toLocaleString('en-IN', {minimumFractionDigits: 2})}
                       </span>
                     </div>
                   </div>

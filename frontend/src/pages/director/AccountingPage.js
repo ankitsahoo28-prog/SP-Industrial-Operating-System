@@ -13,20 +13,20 @@ export default function OdooAccountingPage() {
   const { companyId } = useCompany();
 
   return (
-    <div className="space-y-6" data-testid="odoo-accounting-page">
+    <div className="space-y-4 animate-fade-in" data-testid="odoo-accounting-page">
       <div>
-        <h1 className="text-4xl font-heading font-bold">Accounting</h1>
-        <p className="text-muted-foreground mt-1">Complete double-entry bookkeeping system</p>
+        <h1 className="text-2xl font-heading font-bold tracking-tight">Accounting</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">Double-entry bookkeeping system</p>
       </div>
       <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="grid w-full max-w-4xl grid-cols-7">
-          <TabsTrigger value="overview" data-testid="acc-tab-overview"><DollarSign size={14} className="mr-1 hidden sm:inline" />Overview</TabsTrigger>
-          <TabsTrigger value="ai" data-testid="acc-tab-ai"><Bot size={14} className="mr-1 hidden sm:inline" />AI Assistant</TabsTrigger>
-          <TabsTrigger value="invoicing" data-testid="acc-tab-invoicing"><Receipt size={14} className="mr-1 hidden sm:inline" />Invoicing</TabsTrigger>
-          <TabsTrigger value="payments" data-testid="acc-tab-payments"><CreditCard size={14} className="mr-1 hidden sm:inline" />Payments</TabsTrigger>
-          <TabsTrigger value="entries" data-testid="acc-tab-entries"><BookOpen size={14} className="mr-1 hidden sm:inline" />Entries</TabsTrigger>
-          <TabsTrigger value="reports" data-testid="acc-tab-reports"><BarChart3 size={14} className="mr-1 hidden sm:inline" />Reports</TabsTrigger>
-          <TabsTrigger value="config" data-testid="acc-tab-config"><Settings size={14} className="mr-1 hidden sm:inline" />Config</TabsTrigger>
+        <TabsList className="grid w-full max-w-4xl grid-cols-7 h-9">
+          <TabsTrigger value="overview" className="text-xs" data-testid="acc-tab-overview"><DollarSign size={13} className="mr-1 hidden sm:inline" />Overview</TabsTrigger>
+          <TabsTrigger value="ai" className="text-xs" data-testid="acc-tab-ai"><Bot size={13} className="mr-1 hidden sm:inline" />AI</TabsTrigger>
+          <TabsTrigger value="invoicing" className="text-xs" data-testid="acc-tab-invoicing"><Receipt size={13} className="mr-1 hidden sm:inline" />Invoicing</TabsTrigger>
+          <TabsTrigger value="payments" className="text-xs" data-testid="acc-tab-payments"><CreditCard size={13} className="mr-1 hidden sm:inline" />Payments</TabsTrigger>
+          <TabsTrigger value="entries" className="text-xs" data-testid="acc-tab-entries"><BookOpen size={13} className="mr-1 hidden sm:inline" />Entries</TabsTrigger>
+          <TabsTrigger value="reports" className="text-xs" data-testid="acc-tab-reports"><BarChart3 size={13} className="mr-1 hidden sm:inline" />Reports</TabsTrigger>
+          <TabsTrigger value="config" className="text-xs" data-testid="acc-tab-config"><Settings size={13} className="mr-1 hidden sm:inline" />Config</TabsTrigger>
         </TabsList>
         <TabsContent value="overview"><OverviewTab companyId={companyId} /></TabsContent>
         <TabsContent value="ai"><AiAssistantTab companyId={companyId} /></TabsContent>

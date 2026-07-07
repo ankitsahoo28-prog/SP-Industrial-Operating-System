@@ -136,15 +136,15 @@ export default function Login() {
       <div className="absolute inset-0 bg-gradient-to-br from-black/50 via-black/35 to-slate-900/50" />
 
       <div className="relative z-10 w-full max-w-md px-4">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center bg-white rounded-2xl mb-6 px-12 py-6 shadow-2xl">
-            <img src={logoUrl} alt={appSettings?.app_name || 'SP Group'} className="h-28 w-auto object-contain" data-testid="login-logo" />
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center justify-center bg-white/90 backdrop-blur-sm rounded-xl mb-4 px-8 py-4 shadow-lg">
+            <img src={logoUrl} alt={appSettings?.app_name || 'SP Group'} className="h-16 w-auto object-contain" data-testid="login-logo" />
           </div>
         </div>
 
-        <Card className="shadow-2xl border-0 bg-white/95 backdrop-blur-sm">
-          <CardHeader>
-            <CardTitle className="text-2xl font-heading">
+        <Card className="shadow-xl border bg-white/95 dark:bg-card/95 backdrop-blur-xl">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-xl font-heading tracking-tight">
               {mode === 'login' && 'Welcome Back'}
               {mode === 'register' && 'Create Account'}
               {mode === 'forgot' && 'Forgot Password'}
@@ -152,7 +152,7 @@ export default function Login() {
               {mode === 'wa_forgot' && 'Reset via WhatsApp'}
               {mode === 'wa_reset' && 'Enter OTP'}
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-sm">
               {mode === 'login' && (appSettings?.tagline || 'Sign in to access your dashboard')}
               {mode === 'register' && 'Your account will need Director approval'}
               {mode === 'forgot' && 'Enter your email to receive a reset link'}
@@ -165,15 +165,15 @@ export default function Login() {
             {/* LOGIN FORM */}
             {mode === 'login' && (
               <form onSubmit={handleLogin} className="space-y-4">
-                <div className="space-y-2"><Label>Email</Label><Input type="email" placeholder="you@company.com" value={email} onChange={e => setEmail(e.target.value)} required data-testid="email-input" /></div>
-                <div className="space-y-2"><Label>Password</Label><Input type="password" placeholder="--------" value={password} onChange={e => setPassword(e.target.value)} required data-testid="password-input" /></div>
-                <Button type="submit" className="w-full bg-accent hover:bg-accent/90" disabled={loading} data-testid="login-button">
-                  {loading ? <Loader2 size={18} className="animate-spin mr-2" /> : <LogIn size={18} className="mr-2" />}
+                <div className="space-y-2"><Label className="text-xs font-medium">Email</Label><Input type="email" placeholder="you@company.com" value={email} onChange={e => setEmail(e.target.value)} required data-testid="email-input" className="h-10" /></div>
+                <div className="space-y-2"><Label className="text-xs font-medium">Password</Label><Input type="password" placeholder="--------" value={password} onChange={e => setPassword(e.target.value)} required data-testid="password-input" className="h-10" /></div>
+                <Button type="submit" className="w-full h-10 bg-indigo-600 hover:bg-indigo-700 text-white font-medium" disabled={loading} data-testid="login-button">
+                  {loading ? <Loader2 size={16} className="animate-spin mr-2" /> : <LogIn size={16} className="mr-2" />}
                   {loading ? 'Signing in...' : 'Sign In'}
                 </Button>
-                <div className="flex justify-between text-sm">
-                  <button type="button" className="text-primary hover:underline" onClick={() => setMode('forgot')} data-testid="forgot-password-link">Forgot Password?</button>
-                  <button type="button" className="text-primary hover:underline" onClick={() => setMode('register')} data-testid="create-account-link">Create Account</button>
+                <div className="flex justify-between text-xs">
+                  <button type="button" className="text-indigo-600 hover:text-indigo-700 hover:underline" onClick={() => setMode('forgot')} data-testid="forgot-password-link">Forgot Password?</button>
+                  <button type="button" className="text-indigo-600 hover:text-indigo-700 hover:underline" onClick={() => setMode('register')} data-testid="create-account-link">Create Account</button>
                 </div>
               </form>
             )}

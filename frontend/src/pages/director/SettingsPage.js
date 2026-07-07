@@ -96,8 +96,8 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6 max-w-2xl" data-testid="settings-page">
       <div>
-        <h1 className="text-4xl font-heading font-bold text-primary flex items-center gap-3">
-          <Settings size={32} />App Settings
+        <h1 className="text-2xl font-heading font-bold tracking-tight flex items-center gap-3">
+          <Settings size={20} />App Settings
         </h1>
         <p className="text-muted-foreground mt-1">Customize the application appearance and branding</p>
       </div>

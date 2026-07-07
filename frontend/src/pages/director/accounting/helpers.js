@@ -7,12 +7,12 @@ export const fmtd = (n) => new Intl.NumberFormat('en-IN', { maximumFractionDigit
 
 export function StatCard({ icon: Icon, label, value, color = "text-primary", sub }) {
   return (
-    <Card className="hover:shadow-md transition-shadow" data-testid={`stat-${label.toLowerCase().replace(/\s+/g,'-')}`}>
+    <Card className="group hover:border-indigo-200 dark:hover:border-indigo-500/20 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md" data-testid={`stat-${label.toLowerCase().replace(/\s+/g,'-')}`}>
       <CardContent className="p-4 flex items-center gap-3">
-        <div className="p-2.5 rounded-xl bg-muted"><Icon size={20} className={color} /></div>
+        <div className="p-2.5 rounded-lg bg-muted transition-transform duration-200 group-hover:scale-110"><Icon size={18} className={color} /></div>
         <div className="min-w-0">
-          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">{label}</p>
-          <p className={`text-lg font-heading font-bold ${color}`}>{value}</p>
+          <p className="text-xs text-muted-foreground font-medium">{label}</p>
+          <p className={`text-lg font-heading font-bold`}>{value}</p>
           {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
         </div>
       </CardContent>

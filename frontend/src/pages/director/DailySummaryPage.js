@@ -26,8 +26,8 @@ export default function DailySummaryPage() {
   return (
     <div className="space-y-6" data-testid="daily-summary-page">
       <div>
-        <h1 className="text-4xl font-heading font-bold text-primary flex items-center gap-3">
-          <Calendar size={32} />Daily Summary
+        <h1 className="text-2xl font-heading font-bold tracking-tight flex items-center gap-3">
+          <Calendar size={20} />Daily Summary
         </h1>
         <p className="text-muted-foreground mt-1">Activity overview for {summary?.date || 'today'}</p>
       </div>

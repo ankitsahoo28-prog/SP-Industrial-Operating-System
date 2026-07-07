@@ -74,7 +74,7 @@ const DashboardHome = () => {
   return (
     <div className="space-y-6" data-testid="ground-staff-dashboard">
       <div>
-        <h1 className="text-3xl md:text-4xl font-heading font-bold text-primary mb-2">My Dashboard</h1>
+        <h1 className="text-3xl md:text-2xl font-heading font-bold tracking-tight mb-2">My Dashboard</h1>
         <p className="text-muted-foreground">Welcome back, {user?.name}</p>
       </div>
 
@@ -146,12 +146,12 @@ const DashboardHome = () => {
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <a href="/ground-staff/tasks" className="block p-6 bg-gradient-to-br from-accent/10 to-accent/5 rounded-xl hover:shadow-md transition-all border border-accent/20" data-testid="quick-action-tasks">
-            <ClipboardList size={32} className="text-accent mb-3" />
+            <ClipboardList size={20} className="text-accent mb-3" />
             <p className="font-heading font-semibold text-lg">View Tasks</p>
             <p className="text-sm text-muted-foreground mt-1">Check and update your assigned tasks</p>
           </a>
           <a href="/ground-staff/reports" className="block p-6 bg-gradient-to-br from-primary/10 to-primary/5 rounded-xl hover:shadow-md transition-all border border-primary/20" data-testid="quick-action-reports">
-            <FileText size={32} className="text-primary mb-3" />
+            <FileText size={20} className="text-primary mb-3" />
             <p className="font-heading font-semibold text-lg">Submit Reports</p>
             <p className="text-sm text-muted-foreground mt-1">Enter ground level operational data</p>
           </a>

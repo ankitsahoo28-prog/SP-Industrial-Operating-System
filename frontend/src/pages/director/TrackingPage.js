@@ -59,7 +59,7 @@ export default function TrackingPage() {
   return (
     <div className="space-y-6" data-testid="tracking-page">
       <div>
-        <h1 className="text-3xl font-heading font-bold text-primary">Location Tracking</h1>
+        <h1 className="text-2xl font-heading font-bold tracking-tight">Location Tracking</h1>
         <p className="text-muted-foreground mt-1">Monitor team locations in real-time</p>
       </div>
 

@@ -66,7 +66,7 @@ export default function TasksPage() {
   return (
     <div className="space-y-6" data-testid="ground-staff-tasks-page">
       <div>
-        <h1 className="text-3xl font-heading font-bold text-primary">My Tasks</h1>
+        <h1 className="text-2xl font-heading font-bold tracking-tight">My Tasks</h1>
         <p className="text-muted-foreground mt-1">View and update your assigned tasks</p>
       </div>
 

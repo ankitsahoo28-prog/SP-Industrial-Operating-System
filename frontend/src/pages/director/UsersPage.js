@@ -132,7 +132,7 @@ export default function UsersPage() {
   return (
     <div className="space-y-6" data-testid="users-page">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-3xl font-heading font-bold text-primary">Users</h1>
+        <h1 className="text-2xl font-heading font-bold tracking-tight">Users</h1>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button className="bg-accent hover:bg-accent/90" data-testid="add-user-button"><UserPlus size={18} className="mr-2" />Add User</Button>

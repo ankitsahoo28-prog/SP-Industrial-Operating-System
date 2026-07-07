@@ -19,7 +19,7 @@ const StatCard = ({ icon: Icon, title, value, description, color }) => (
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <p className="text-sm text-muted-foreground uppercase tracking-wider mb-1">{title}</p>
-          <p className="text-3xl font-heading font-bold text-primary mb-1">{value}</p>
+          <p className="text-2xl font-heading font-bold tracking-tight mb-1">{value}</p>
           {description && <p className="text-xs text-muted-foreground">{description}</p>}
         </div>
         <div className={`p-3 rounded-xl ${color}`}>
@@ -92,7 +92,7 @@ const DashboardHome = () => {
   return (
     <div className="space-y-8" data-testid="manager-dashboard">
       <div>
-        <h1 className="text-4xl font-heading font-bold text-primary mb-2">Manager Dashboard</h1>
+        <h1 className="text-2xl font-heading font-bold tracking-tight mb-2">Manager Dashboard</h1>
         <p className="text-muted-foreground">Manage your team and operations</p>
       </div>
 

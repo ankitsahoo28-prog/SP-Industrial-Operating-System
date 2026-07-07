@@ -15,7 +15,7 @@ export default function AccountingPage() {
   return (
     <div className="space-y-6" data-testid="manager-accounting-page">
       <div>
-        <h1 className="text-4xl font-heading font-bold">Accounting</h1>
+        <h1 className="text-2xl font-heading font-bold tracking-tight">Accounting</h1>
         <p className="text-muted-foreground mt-1">Complete double-entry bookkeeping system</p>
       </div>
       <Tabs defaultValue="overview" className="space-y-4">

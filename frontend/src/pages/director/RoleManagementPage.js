@@ -112,7 +112,7 @@ export default function RoleManagementPage() {
     <div className="space-y-6" data-testid="role-management-page">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-heading font-bold text-primary flex items-center gap-3"><Shield size={28} />Role Management</h1>
+          <h1 className="text-2xl font-heading font-bold tracking-tight flex items-center gap-3"><Shield size={18} />Role Management</h1>
           <p className="text-muted-foreground mt-1">Define custom job roles and permissions</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) { setEditingRole(null); setForm({ name: '', description: '', permissions: [] }); } }}>

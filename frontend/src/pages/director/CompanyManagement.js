@@ -112,7 +112,7 @@ export default function CompanyManagement() {
     <div className="space-y-6" data-testid="company-management-page">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-4xl font-heading font-bold text-primary flex items-center gap-3"><Building2 size={32} />Company Management</h1>
+          <h1 className="text-2xl font-heading font-bold tracking-tight flex items-center gap-3"><Building2 size={20} />Company Management</h1>
           <p className="text-muted-foreground mt-1">Create, manage, and control multi-company data</p>
         </div>
         <div className="flex gap-2">

@@ -116,7 +116,7 @@ export default function TasksPage() {
     <div className="space-y-6" data-testid="tasks-page">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-heading font-bold text-primary flex items-center gap-2"><ClipboardList size={28} />Tasks</h1>
+          <h1 className="text-2xl font-heading font-bold tracking-tight flex items-center gap-2"><ClipboardList size={18} />Tasks</h1>
           <p className="text-muted-foreground text-sm mt-1">{tasks.length} tasks total</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
